@@ -526,9 +526,9 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pml"
-version = "0.2.1"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b4a1d3aed3c88750e2664cfe5a7bbac421c46c2fdd6ee26f298832f020a0c32"
+checksum = "c153d85301d19f4aff0a80f87b9d51af7bace21971e2cba65fba990c6e2037ab"
 
 [[package]]
 name = "ppv-lite86"
