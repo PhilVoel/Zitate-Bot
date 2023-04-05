@@ -16,8 +16,12 @@ static mut CONFIG: pml::PmlStruct = pml::new();
 
 #[async_trait]
 impl EventHandler for Handler {
+    async fn ready(&self, _: Context, _: Ready) {
+        println!("Logged in");
+    }
+
     async fn message(&self, ctx: Context, msg: Message) {
-        let zitate_channel_id: u64;
+        let zitate_channel_id;
         unsafe {
             zitate_channel_id = *CONFIG.get_int("channelZitate") as u64;
         }
@@ -31,15 +35,11 @@ impl EventHandler for Handler {
             dm_handler(msg);
         }
     }
-
-    async fn ready(&self, _: Context, _ready: Ready) {
-        println!("Logged in");
-    }
 }
 
 #[tokio::main]
 async fn main() {
-    let bot_token: &str;
+    let bot_token;
     unsafe {
         CONFIG = pml::parse_file("config");
         bot_token = CONFIG.get_string("botToken");
