@@ -19,9 +19,15 @@ use std::{
 };
 use chrono::prelude::*;
 
-struct Handler;
+struct Handler {
+    pub config: pml::PmlStruct,
+}
 
-static mut CONFIG: pml::PmlStruct = pml::new();
+struct DbUser {
+    id: String,
+    pub name: String,
+    uids: Vec<u64>
+}
 static mut START_TIME: u128 = 0;
 
 #[async_trait]
@@ -31,28 +37,25 @@ impl EventHandler for Handler {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
-        let zitate_channel_id;
-        unsafe {
-            zitate_channel_id = *CONFIG.get_int("channelZitate") as u64;
-        }
+        let config = &self.config;
+        let zitate_channel_id = *config.get_int("channelZitate") as u64;
         if msg.author.bot || msg.content == "" {
             return;
         }
         else if *msg.channel_id.as_u64() == zitate_channel_id {
             register_zitat(msg);
         }
-        else if let Channel::Private(_) = msg.channel(ctx).await.unwrap() {
-            dm_handler(msg);
+        else if let Channel::Private(_) = msg.channel(&ctx).await.unwrap() {
+            dm_handler(msg, config, &ctx).await;
         }
     }
 }
 
 #[tokio::main]
 async fn main() {
-    let bot_token;
+    let config = pml::parse_file("config");
+    let bot_token = config.get_string("botToken");
     unsafe {
-        CONFIG = pml::parse_file("config");
-        bot_token = CONFIG.get_string("botToken");
         START_TIME = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
     }
     let intents =
@@ -60,7 +63,7 @@ async fn main() {
         GatewayIntents::GUILD_MESSAGES |
         GatewayIntents::MESSAGE_CONTENT |
         GatewayIntents::DIRECT_MESSAGES;
-    let mut client = Client::builder(&bot_token, intents).event_handler(Handler).await.expect("Error creating client");
+    let mut client = Client::builder(&bot_token, intents).event_handler(Handler{config}).await.expect("Error creating client");
     if let Err(why) = client.start().await {
         log(&format!("Could not start client: {:?}", why), "ERR ");
     }
