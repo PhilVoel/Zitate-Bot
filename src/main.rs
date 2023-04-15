@@ -96,5 +96,28 @@ fn get_date_string() -> String {
 fn register_zitat(_msg: Message) {
 }
 
-fn dm_handler(_msg: Message) {
+async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
+    let serenity::model::id::UserId(author_id) = msg.author.id;
+    if author_id == *config.get_unsigned("ownerId") {
+        return;
+    }
+    let author = match get_user_from_db_by_id(&author_id) {
+        Ok(Some(user_data)) => format!("{}", user_data.name),
+        Ok(None) => format!("{} (ID: {})", msg.author.tag(), author_id),
+        Err(e) => {
+            log(&format!("Error while getting user from db: {}", e), "ERR ");
+            format!("{} (ID: {})", msg.author.tag(), author_id)
+        }
+    };
+    log(&format!("Received DM from {}", author), "INFO");
+    send_dm(config.get_unsigned("ownerId"), format!("DM von {}:\n{}", author, msg.content), ctx).await;
+}
+
+fn get_user_from_db_by_id(_id: &u64) -> surrealdb::Result<Option<DbUser>> { 
+    Ok(None)
+}
+
+async fn send_dm(id: &u64, message: String, ctx: &Context) {
+    println!("Sending DM to {}: {}", id, message);
+    ctx.http.get_user(*id).await.unwrap().direct_message(&ctx, |m| m.content(&message)).await.unwrap();
 }
