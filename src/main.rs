@@ -91,7 +91,6 @@ fn log_to_file(print_string: String) {
 fn get_date_string() -> String {
     let now = Local::now();
     now.format("%d.%m.%Y %H:%M:%S").to_string()
-    //format!("{:04}.{:02}.{:02} {:02}:{:02}:{:03}", now.year(), now.month(), now.day(), now.hour(), now.minute(), now.second())
 }
 
 fn register_zitat(_msg: Message) {
