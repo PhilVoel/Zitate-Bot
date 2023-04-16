@@ -18,8 +18,16 @@ use std::{
     fs::OpenOptions
 };
 use chrono::prelude::*;
+use surrealdb::{
+    Surreal,
+    engine::remote::ws::{
+        Ws,Client as SurrealClient
+    },
+    opt::auth::Database
+};
 
 struct Handler {
+    pub db: Surreal<SurrealClient>,
     pub config: pml::PmlStruct,
 }
 
@@ -55,6 +63,14 @@ impl EventHandler for Handler {
 async fn main() {
     let config = pml::parse_file("config");
     let bot_token = config.get_string("botToken");
+    let db = Surreal::new::<Ws>(config.get_string("dbUrl")).await.unwrap();
+    db.signin(Database {
+        namespace: config.get_string("dbNs"),
+        database: config.get_string("dbName"),
+        username: config.get_string("dbUser"),
+        password: config.get_string("dbPass")
+    }).await.unwrap();
+
     unsafe {
         START_TIME = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
     }
@@ -63,7 +79,7 @@ async fn main() {
         GatewayIntents::GUILD_MESSAGES |
         GatewayIntents::MESSAGE_CONTENT |
         GatewayIntents::DIRECT_MESSAGES;
-    let mut client = Client::builder(&bot_token, intents).event_handler(Handler{config}).await.expect("Error creating client");
+    let mut client = Client::builder(&bot_token, intents).event_handler(Handler{config, db}).await.expect("Error creating client");
     if let Err(why) = client.start().await {
         log(&format!("Could not start client: {:?}", why), "ERR ");
     }
