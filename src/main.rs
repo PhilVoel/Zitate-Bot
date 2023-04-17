@@ -27,7 +27,6 @@ use surrealdb::{
 };
 
 struct Handler {
-    pub db: Surreal<SurrealClient>,
     pub config: pml::PmlStruct,
 }
 
@@ -37,6 +36,7 @@ struct DbUser {
     uids: Vec<u64>
 }
 static mut START_TIME: u128 = 0;
+static DB: Surreal<SurrealClient> = Surreal::init();
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -63,8 +63,8 @@ impl EventHandler for Handler {
 async fn main() {
     let config = pml::parse_file("config");
     let bot_token = config.get_string("botToken");
-    let db = Surreal::new::<Ws>(config.get_string("dbUrl")).await.unwrap();
-    db.signin(Database {
+    DB.connect::<Ws>(config.get_string("dbUrl")).await.unwrap();
+    DB.signin(Database {
         namespace: config.get_string("dbNs"),
         database: config.get_string("dbName"),
         username: config.get_string("dbUser"),
@@ -79,7 +79,7 @@ async fn main() {
         GatewayIntents::GUILD_MESSAGES |
         GatewayIntents::MESSAGE_CONTENT |
         GatewayIntents::DIRECT_MESSAGES;
-    let mut client = Client::builder(&bot_token, intents).event_handler(Handler{config, db}).await.expect("Error creating client");
+    let mut client = Client::builder(&bot_token, intents).event_handler(Handler{config}).await.expect("Error creating client");
     if let Err(why) = client.start().await {
         log(&format!("Could not start client: {:?}", why), "ERR ");
     }
