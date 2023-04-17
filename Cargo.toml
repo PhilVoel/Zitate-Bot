@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 chrono = "0.4.24"
 pml = "0.3.0"
+serde = "1.0.160"
 serenity = {version = "0.11.5", default-features = false, features = ["client", "gateway", "rustls_backend", "model"]}
 surrealdb = "1.0.0-beta.9"
 tokio = {version = "1.27.0", features = ["macros", "rt-multi-thread"]}

@@ -2483,6 +2483,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "pml",
+ "serde",
  "serenity",
  "surrealdb",
  "tokio",

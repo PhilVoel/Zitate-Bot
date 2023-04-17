@@ -25,11 +25,13 @@ use surrealdb::{
     },
     opt::auth::Database
 };
+use serde::Deserialize;
 
 struct Handler {
     pub config: pml::PmlStruct,
 }
 
+#[derive(Deserialize)]
 struct DbUser {
     id: String,
     pub name: String,
@@ -117,7 +119,7 @@ async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     if author_id == *config.get_unsigned("ownerId") {
         return;
     }
-    let author = match get_user_from_db_by_id(&author_id) {
+    let author = match get_user_from_db_by_id(&author_id).await {
         Ok(Some(user_data)) => format!("{}", user_data.name),
         Ok(None) => format!("{} (ID: {})", msg.author.tag(), author_id),
         Err(e) => {
@@ -129,8 +131,8 @@ async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     send_dm(config.get_unsigned("ownerId"), format!("DM von {}:\n{}", author, msg.content), ctx).await;
 }
 
-fn get_user_from_db_by_id(_id: &u64) -> surrealdb::Result<Option<DbUser>> { 
-    Ok(None)
+async fn get_user_from_db_by_id(id: &u64) -> surrealdb::Result<Option<DbUser>> {
+    Ok(DB.query("SELECT name, uids, type::string(id) as id FROM user WHERE $id IN uids").bind(("id", id)).await?.take(0)?)
 }
 
 async fn send_dm(id: &u64, message: String, ctx: &Context) {
