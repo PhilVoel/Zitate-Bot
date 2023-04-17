@@ -135,6 +135,10 @@ async fn get_user_from_db_by_id(id: &u64) -> surrealdb::Result<Option<DbUser>> {
     Ok(DB.query("SELECT name, uids, type::string(id) as id FROM user WHERE $id IN uids").bind(("id", id)).await?.take(0)?)
 }
 
+async fn get_user_from_db_by_name(name: &str) -> surrealdb::Result<Option<DbUser>> {
+    Ok(DB.query("SELECT name, uids, type::string(id) as id FROM user WHERE name = $name").bind(("name", name)).await?.take(0)?)
+}
+
 async fn send_dm(id: &u64, message: String, ctx: &Context) {
     println!("Sending DM to {}: {}", id, message);
     ctx.http.get_user(*id).await.unwrap().direct_message(&ctx, |m| m.content(&message)).await.unwrap();
