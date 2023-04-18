@@ -62,7 +62,7 @@ impl EventHandler for Handler {
 
     async fn message(&self, ctx: Context, msg: Message) {
         let config = &self.config;
-        let zitate_channel_id = *config.get_int("channelZitate") as u64;
+        let zitate_channel_id = *config.get_unsigned("channelZitate");
         if msg.author.bot || msg.content == "" {
             return;
         }
