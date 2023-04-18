@@ -5,7 +5,8 @@ use serenity::{
             Message,
             Channel
         },
-        gateway::Ready
+        gateway::Ready,
+        id::UserId as SerenityUserId
     },
     prelude::*
 };
@@ -115,7 +116,7 @@ fn register_zitat(_msg: Message) {
 }
 
 async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
-    let serenity::model::id::UserId(author_id) = msg.author.id;
+    let SerenityUserId(author_id) = msg.author.id;
     if author_id == *config.get_unsigned("ownerId") {
         return;
     }
