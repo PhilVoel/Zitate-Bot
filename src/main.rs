@@ -3,10 +3,20 @@ use serenity::{
     model::{
         channel::{
             Message,
-            Channel
+            Channel::{
+                self,
+                Guild as GuildChannel
+            }
         },
         gateway::Ready,
-        id::UserId as SerenityUserId
+        id::{
+            UserId as SerenityUserId,
+            ChannelId
+        },
+        prelude::{
+            ChannelType,
+            GatewayIntents
+        }
     },
     prelude::*
 };
@@ -26,13 +36,16 @@ use surrealdb::{
     },
     opt::auth::Database
 };
-use serde::Deserialize;
+use serde::{
+    Serialize,
+    Deserialize
+};
 
 struct Handler {
     pub config: pml::PmlStruct,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct DbUser {
     id: String,
     pub name: String,
@@ -54,7 +67,7 @@ impl EventHandler for Handler {
             return;
         }
         else if *msg.channel_id.as_u64() == zitate_channel_id {
-            register_zitat(msg);
+            register_zitat(msg, config, &ctx).await;
         }
         else if let Channel::Private(_) = msg.channel(&ctx).await.unwrap() {
             dm_handler(msg, config, &ctx).await;
@@ -112,7 +125,43 @@ fn get_date_string() -> String {
     now.format("%d.%m.%Y %H:%M:%S").to_string()
 }
 
-fn register_zitat(_msg: Message) {
+async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Context) {
+    let SerenityUserId(author_id) = zitat_msg.author.id;
+    let msg_id = zitat_msg.id.as_u64();
+    let author = match get_user_from_db_by_uid(&author_id).await {
+        Ok(Some(user_data)) => user_data,
+        Ok(None) => {
+            log("Author not found in DB", "WARN");
+            add_user(&author_id, &zitat_msg.author.name).await
+        }
+        Err(e) => {
+            log(&format!("Error while getting user from db: {}", e), "ERR ");
+            add_user(&author_id, &zitat_msg.author.name).await
+        }
+    };
+    DB.query(format!("INSERT INTO zitat:{} SET text=type::string({}); RELATE {}->wrote->zitat:{} SET time=type::datetime({})",
+        msg_id,
+        zitat_msg.content,
+        author.id,
+        msg_id,
+        zitat_msg.timestamp
+    )).await.unwrap();
+    log(&format!("Zitat with ID {} successfully inserted into DB", msg_id), "INFO");
+    if let GuildChannel(bot_channel) = ctx.http.get_channel(*config.get_unsigned("channelBot")).await.unwrap() {
+        let thread_msg = bot_channel.say(&ctx.http, format!("{}\n{}", zitat_msg.link(), zitat_msg.content)).await.unwrap();
+        ChannelId(*config.get_unsigned("cannelBot")).create_public_thread(&ctx.http, thread_msg, |thread| thread.name(msg_id.to_string()).kind(ChannelType::PublicThread)).await.unwrap();
+        log("Created thread in #zitate-bot", "INFO");
+    }
+}
+
+async fn add_user(id: &u64, name: &str) -> DbUser {
+    let entry: DbUser = DB.create(("user", id.to_string())).content(DbUser{
+        id: format!("user:{}", id.to_string()),
+        name: name.to_string(),
+        uids: vec![*id]
+    }).await.unwrap();
+    log(&format!("Added {} to DB", name), "INFO");
+    entry
 }
 
 async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
