@@ -147,11 +147,20 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
         zitat_msg.timestamp
     )).await.unwrap();
     log(&format!("Zitat with ID {} successfully inserted into DB", msg_id), "INFO");
-    if let GuildChannel(bot_channel) = ctx.http.get_channel(*config.get_unsigned("channelBot")).await.unwrap() {
-        let thread_msg = bot_channel.say(&ctx.http, format!("{}\n{}", zitat_msg.link(), zitat_msg.content)).await.unwrap();
-        ChannelId(*config.get_unsigned("cannelBot")).create_public_thread(&ctx.http, thread_msg, |thread| thread.name(msg_id.to_string()).kind(ChannelType::PublicThread)).await.unwrap();
-        log("Created thread in #zitate-bot", "INFO");
+    let channel_id = *config.get_unsigned("channelZitate");
+    let bot_channel = if let Some(GuildChannel(bot_channel)) = ctx.cache.channel(channel_id) {
+        bot_channel
     }
+    else if let GuildChannel(bot_channel) = ctx.http.get_channel(channel_id).await.unwrap() {
+        bot_channel
+    }
+    else {
+        log("Could not get #zitate-bot", "ERR ");
+        return;
+    };
+    let thread_msg = bot_channel.say(&ctx.http, format!("{}\n{}", zitat_msg.link(), zitat_msg.content)).await.unwrap();
+    ChannelId(*config.get_unsigned("cannelBot")).create_public_thread(&ctx.http, thread_msg, |thread| thread.name(msg_id.to_string()).kind(ChannelType::PublicThread)).await.unwrap();
+    log("Created thread in #zitate-bot", "INFO");
 }
 
 async fn add_user(id: &u64, name: &str) -> DbUser {
@@ -191,5 +200,10 @@ async fn get_user_from_db_by_name(name: &str) -> surrealdb::Result<Option<DbUser
 
 async fn send_dm(id: &u64, message: String, ctx: &Context) {
     println!("Sending DM to {}: {}", id, message);
-    ctx.http.get_user(*id).await.unwrap().direct_message(&ctx, |m| m.content(&message)).await.unwrap();
+    if let Some(user) = ctx.cache.user(*id) {
+        user.direct_message(&ctx, |m| m.content(&message)).await.unwrap();
+    }
+    else {
+        ctx.http.get_user(*id).await.unwrap().direct_message(&ctx, |m| m.content(&message)).await.unwrap();
+    }
 }
