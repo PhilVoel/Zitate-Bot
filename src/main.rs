@@ -10,6 +10,8 @@ use serenity::{
         },
         gateway::Ready,
         id::{
+            MessageId,
+            GuildId,
             UserId as SerenityUserId,
             ChannelId
         },
@@ -73,6 +75,13 @@ impl EventHandler for Handler {
             dm_handler(msg, config, &ctx).await;
         }
     }
+
+    async fn message_delete(&self, ctx: Context, channel_id: ChannelId, msg_id: MessageId, _: Option<GuildId>) {
+        let config = &self.config;
+        if *channel_id.as_u64() == *config.get_unsigned("channelZitate") {
+            remove_zitat(msg_id, channel_id, &ctx).await;
+        }
+    }
 }
 
 #[tokio::main]
@@ -99,6 +108,20 @@ async fn main() {
     if let Err(why) = client.start().await {
         log(&format!("Could not start client: {:?}", why), "ERR ");
     }
+}
+
+async fn remove_zitat(msg_id: MessageId, channel_id: ChannelId, ctx: &Context) {
+    log(&format!("Deleting Zitat with ID {}", msg_id.as_u64()), "WARN");
+    DB.query(format!("BEGIN TRANSACTION; DELETE zitat:{}; DELETE wrote, said, assisted WHERE out=zitat:{}; COMMIT TRANSACTION", msg_id, msg_id));
+    if let Some(old_msg) = ctx.cache.message(channel_id, msg_id) {
+        log(&format!("Content: {}", old_msg.content), "INFO");
+        log(&format!("Author:  {}", old_msg.author.name), "INFO");
+        log(&format!("Date:    {}", old_msg.timestamp), "INFO");
+    }
+    else {
+        log("Message not found in cache", "WARN");
+    }
+    log("Deleted from DB", "INFO");
 }
 
 fn log(message: &str, r#type: &str) {
