@@ -110,10 +110,22 @@ async fn main() {
     }
 }
 
+async fn fetch_message_from_id(msg_id: u64, channel_id: u64, ctx: &Context) -> Option<Message> {
+    if let Some(cache_result) = ctx.cache.message(channel_id, msg_id) {
+        Some(cache_result)
+    }
+    else if let Ok(http_result) = ctx.http.get_message(channel_id, msg_id).await {
+        Some(http_result)
+    }
+    else {
+        None
+    }
+}
+
 async fn remove_zitat(msg_id: MessageId, channel_id: ChannelId, ctx: &Context) {
     log(&format!("Deleting Zitat with ID {}", msg_id.as_u64()), "WARN");
     DB.query(format!("BEGIN TRANSACTION; DELETE zitat:{}; DELETE wrote, said, assisted WHERE out=zitat:{}; COMMIT TRANSACTION", msg_id, msg_id));
-    if let Some(old_msg) = ctx.cache.message(channel_id, msg_id) {
+    if let Some(old_msg) = fetch_message_from_id(*msg_id.as_u64(), *channel_id.as_u64(), ctx).await {
         log(&format!("Content: {}", old_msg.content), "INFO");
         log(&format!("Author:  {}", old_msg.author.name), "INFO");
         log(&format!("Date:    {}", old_msg.timestamp), "INFO");
