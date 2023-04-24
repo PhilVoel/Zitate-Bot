@@ -124,7 +124,7 @@ async fn fetch_message_from_id(msg_id: u64, channel_id: u64, ctx: &Context) -> O
 
 async fn remove_zitat(msg_id: MessageId, channel_id: ChannelId, ctx: &Context) {
     log(&format!("Deleting Zitat with ID {}", msg_id.as_u64()), "WARN");
-    DB.query(format!("BEGIN TRANSACTION; DELETE zitat:{}; DELETE wrote, said, assisted WHERE out=zitat:{}; COMMIT TRANSACTION", msg_id, msg_id));
+    DB.query(format!("BEGIN TRANSACTION; DELETE zitat:{}; DELETE wrote, said, assisted WHERE out=zitat:{}; COMMIT TRANSACTION", msg_id, msg_id)).await.unwrap();
     if let Some(old_msg) = fetch_message_from_id(*msg_id.as_u64(), *channel_id.as_u64(), ctx).await {
         log(&format!("Content: {}", old_msg.content), "INFO");
         log(&format!("Author:  {}", old_msg.author.name), "INFO");
@@ -174,15 +174,12 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
             add_user(&author_id, &zitat_msg.author.name).await
         }
     };
-    DB.query(format!("INSERT INTO zitat:{} SET text=type::string({}); RELATE {}->wrote->zitat:{} SET time=type::datetime({})",
-        msg_id,
-        zitat_msg.content,
-        author.id,
-        msg_id,
-        zitat_msg.timestamp
-    )).await.unwrap();
+    DB.query(format!("CREATE zitat:{0} SET text=type::string($text); RELATE {1}->wrote->zitat:{0} SET time=type::datetime($time)", msg_id, author.id))
+        .bind(("text", &zitat_msg.content))
+        .bind(("time", zitat_msg.timestamp))
+        .await.unwrap();
     log(&format!("Zitat with ID {} successfully inserted into DB", msg_id), "INFO");
-    let channel_id = *config.get_unsigned("channelZitate");
+    let channel_id = *config.get_unsigned("channelBot");
     let bot_channel = if let Some(GuildChannel(bot_channel)) = ctx.cache.channel(channel_id) {
         bot_channel
     }
@@ -194,7 +191,7 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
         return;
     };
     let thread_msg = bot_channel.say(&ctx.http, format!("{}\n{}", zitat_msg.link(), zitat_msg.content)).await.unwrap();
-    ChannelId(*config.get_unsigned("cannelBot")).create_public_thread(&ctx.http, thread_msg, |thread| thread.name(msg_id.to_string()).kind(ChannelType::PublicThread)).await.unwrap();
+    ChannelId(channel_id).create_public_thread(&ctx.http, thread_msg, |thread| thread.name(msg_id.to_string()).kind(ChannelType::PublicThread)).await.unwrap();
     log("Created thread in #zitate-bot", "INFO");
 }
 
