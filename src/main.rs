@@ -196,13 +196,16 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
 }
 
 async fn add_user(id: &u64, name: &str) -> DbUser {
-    let entry: DbUser = DB.create(("user", id.to_string())).content(DbUser{
-        id: format!("user:{}", id.to_string()),
+    DB.query("CREATE type::thing('user', $id) SET name=$name, uids=[$id]")
+        .bind(("name", name))
+        .bind(("id", id))
+        .await.unwrap();
+    log(&format!("Added {} to DB", name), "INFO");
+    DbUser{
+        id: format!("user:{}", id),
         name: name.to_string(),
         uids: vec![*id]
-    }).await.unwrap();
-    log(&format!("Added {} to DB", name), "INFO");
-    entry
+    }
 }
 
 async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
