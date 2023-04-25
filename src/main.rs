@@ -171,11 +171,21 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
         Ok(Some(user_data)) => user_data,
         Ok(None) => {
             log("Author not found in DB", "WARN");
-            add_user(&author_id, &zitat_msg.author.name).await
+            add_user(&author_id, &zitat_msg.author.name).await;
+            DbUser{
+                id: format!("user:{}", author_id),
+                name: zitat_msg.author.name.to_string(),
+                uids: vec![author_id]
+            }
         }
         Err(e) => {
             log(&format!("Error while getting user from db: {}", e), "ERR ");
-            add_user(&author_id, &zitat_msg.author.name).await
+            add_user(&author_id, &zitat_msg.author.name).await;
+            DbUser{
+                id: format!("user:{}", author_id),
+                name: zitat_msg.author.name.to_string(),
+                uids: vec![author_id]
+            }
         }
     };
     DB.query(format!("CREATE zitat:{0} SET text=type::string($text); RELATE {1}->wrote->zitat:{0} SET time=type::datetime($time)", msg_id, author.id))
@@ -199,17 +209,12 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
     log("Created thread in #zitate-bot", "INFO");
 }
 
-async fn add_user(id: &u64, name: &str) -> DbUser {
+async fn add_user(id: &u64, name: &str) {
     DB.query("CREATE type::thing('user', $id) SET name=$name, uids=[$id]")
         .bind(("name", name))
         .bind(("id", id))
         .await.unwrap();
     log(&format!("Added {} to DB", name), "INFO");
-    DbUser{
-        id: format!("user:{}", id),
-        name: name.to_string(),
-        uids: vec![*id]
-    }
 }
 
 async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
