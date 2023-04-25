@@ -142,15 +142,19 @@ fn log(message: &str, r#type: &str) {
     log_to_file(print_string);
 }
 
-fn log_to_file(print_string: String) {
+fn get_log_file_path() -> String {
     let file_path;
     unsafe {
         file_path = format!("logs/{}.log", START_TIME);
     }
+    file_path
+}
+
+fn log_to_file(print_string: String) {
     let mut file = OpenOptions::new()
         .create(true)
         .append(true)
-        .open(file_path)
+        .open(get_log_file_path())
         .unwrap();
     file.write_all(print_string.as_bytes()).unwrap();
 }
