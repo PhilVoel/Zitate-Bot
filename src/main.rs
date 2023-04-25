@@ -23,12 +23,19 @@ use serenity::{
     prelude::*
 };
 use std::{
+    env,
     time::{
         SystemTime,
         UNIX_EPOCH
     },
-    io::Write,
-    fs::OpenOptions
+    io::{
+        Write,
+        self
+    },
+    fs::{
+        OpenOptions,
+        self
+    }
 };
 use chrono::prelude::*;
 use surrealdb::{
@@ -58,8 +65,13 @@ static DB: Surreal<SurrealClient> = Surreal::init();
 
 #[async_trait]
 impl EventHandler for Handler {
-    async fn ready(&self, _: Context, _: Ready) {
+    async fn ready(&self, ctx: Context, _: Ready) {
         log("Logged in", "INFO");
+        loop {
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            console_input_handler(input, &ctx, &self.config).await;
+        }
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
@@ -107,6 +119,39 @@ async fn main() {
     let mut client = Client::builder(&bot_token, intents).event_handler(Handler{config}).await.expect("Error creating client");
     if let Err(why) = client.start().await {
         log(&format!("Could not start client: {:?}", why), "ERR ");
+    }
+}
+
+async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlStruct) {
+    let input = input.trim();
+    log_to_file(format!("[{}] > {}", get_date_string(), input));
+    let result: Vec<String> = input.split(" ").map(|s| s.to_string()).collect();
+    match result.get(0) {
+        Some(s) if s == "zitat" => match result.get(1) {
+            Some(s) if s == "add" => register_zitat(fetch_message_from_id(result.get(2).unwrap().parse::<u64>().unwrap(), *config.get_unsigned("channelZitate"), ctx).await.unwrap(), config, ctx).await,
+            Some(s) if s == "remove" => remove_zitat(MessageId(result.get(2).unwrap().parse::<u64>().unwrap()), ChannelId(*config.get_unsigned("channelZitate")), ctx).await,
+            Some(_) => println!("Unknown subcommand"),
+            None => println!("Missing subcommand")
+        },
+        Some(s) if s == "user" => match result.get(1) {
+            Some(s) if s == "add" => {
+                add_user(&result.get(3).unwrap().parse::<u64>().unwrap(), result.get(2).unwrap()).await;
+            },
+            Some(_) => println!("Unknown subcommand"),
+            None => println!("Missing subcommand")
+        },
+        Some(s) if s == "exit" => {
+            ctx.shard.shutdown_clean();
+            if env::args().collect::<Vec<String>>().contains(&"test".to_string()) {
+                fs::remove_file(get_log_file_path()).unwrap();
+            }
+            else {
+                log("Exiting...", "INFO");
+            }
+            std::process::exit(0);
+        }
+        Some(_) => println!("Unknown command"),
+        None => (),
     }
 }
 
