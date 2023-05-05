@@ -60,7 +60,21 @@ struct DbUser {
     pub name: String,
     uids: Vec<u64>
 }
+
+#[derive(Deserialize)]
+struct RankingResult {
+    pub name: String,
+    pub count: u16
+}
+
+enum RankingType {
+    Said,
+    Wrote,
+    Assisted
+}
+
 static mut START_TIME: u128 = 0;
+static mut OVERALL_ZITATE_COUNT: u16 = 0;
 static DB: Surreal<SurrealClient> = Surreal::init();
 
 #[async_trait]
@@ -110,6 +124,11 @@ async fn main() {
 
     unsafe {
         START_TIME = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+        let overall_num_zitate: Option<u16> = DB.query("SELECT count() FROM zitat GROUP BY count").await.unwrap().take((0, "count")).unwrap();
+        OVERALL_ZITATE_COUNT = match overall_num_zitate {
+            Some(num) => num,
+            None => 0
+        };
     }
     let intents =
         GatewayIntents::GUILDS |
@@ -137,6 +156,28 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
             Some(s) if s == "add" => {
                 add_user(&result.get(3).unwrap().parse::<u64>().unwrap(), result.get(2).unwrap()).await;
             },
+            Some(s) if s == "stats" => {
+                match get_user_from_db_by_name(result.get(2).unwrap()).await.unwrap() {
+                    Some(user) => println!("{}", get_user_stats(user).await),
+                    None => println!("User not found")
+                }
+            },
+            Some(s) if s == "ranking" => {
+                let r#type = match result.get(2) {
+                    Some(s) if s == "said" => RankingType::Said,
+                    Some(s) if s == "wrote" => RankingType::Wrote,
+                    Some(s) if s == "assisted" => RankingType::Assisted,
+                    Some(_) => {
+                        println!("Unknown ranking type");
+                        return;
+                    },
+                    None => {
+                        println!("Missing ranking type");
+                        return;
+                    }
+                };
+                println!("{}", get_ranking(r#type).await);
+            },
             Some(_) => println!("Unknown subcommand"),
             None => println!("Missing subcommand")
         },
@@ -153,6 +194,45 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
         Some(_) => println!("Unknown command"),
         None => (),
     }
+}
+
+fn get_percentage(count: &u16) -> f32 {
+    let total;
+    unsafe {
+        total = OVERALL_ZITATE_COUNT;
+    }
+    (*count as f32 * 10_000.0 / total as f32).round() / 100.0
+}
+
+async fn get_ranking(r#type: RankingType) -> String {
+    let (type_de, type_db) = match r#type {
+        RankingType::Said => ("gesprochene", "said"),
+        RankingType::Wrote => ("geschriebene", "wrote"),
+        RankingType::Assisted => ("assistierte", "assisted")
+    };
+    let ranking: Vec<RankingResult>  = DB.query("SELECT count(), in.name as name FROM type::table($kategorie) GROUP BY name ORDER BY count DESC").bind(("kategorie", type_db)).await.unwrap().take(0).unwrap();
+    format!("Ranking {} Zitate:\n{}", type_de, ranking.iter().enumerate().map(|(i, r)| format!("{:02}.: {}: {} ({}%)", i + 1, r.name, r.count, get_percentage(&r.count))).collect::<Vec<String>>().join("\n"))
+}
+
+async fn get_user_stats(user: DbUser) -> String {
+    let user_id = user.id;
+    let said: Option<i32> = DB.query(format!("SELECT count(->said) FROM {}", user_id)).await.unwrap().take((0, "count")).unwrap();
+    let wrote: Option<i32> = DB.query(format!("SELECT count(->wrote) FROM {}", user_id)).await.unwrap().take((0, "count")).unwrap();
+   let assisted: Option<i32> = DB.query(format!("SELECT count(->assisted) FROM {}", user_id)).await.unwrap().take((0, "count")).unwrap();
+   let said: u16 = match said {
+        Some(s) => s as u16,
+        None => 0
+    };
+    let wrote: u16 = match wrote {
+        Some(s) => s as u16,
+        None => 0
+    };
+    let assisted: u16 = match assisted {
+        Some(s) => s as u16,
+        None => 0
+    };
+    format!("Stats für {}:\nGesagt: {} ({}%)\nGeschrieben: {} ({}%)\nAssisted: {} ({}%)",
+            user.name, said, get_percentage(&said), wrote, get_percentage(&wrote), assisted, get_percentage(&assisted))
 }
 
 async fn fetch_message_from_id(msg_id: u64, channel_id: u64, ctx: &Context) -> Option<Message> {
@@ -252,6 +332,9 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
     let thread_msg = bot_channel.say(&ctx.http, format!("{}\n{}", zitat_msg.link(), zitat_msg.content)).await.unwrap();
     ChannelId(channel_id).create_public_thread(&ctx.http, thread_msg, |thread| thread.name(msg_id.to_string()).kind(ChannelType::PublicThread)).await.unwrap();
     log("Created thread in #zitate-bot", "INFO");
+    unsafe {
+        OVERALL_ZITATE_COUNT += 1;
+    }
 }
 
 async fn add_user(id: &u64, name: &str) {
