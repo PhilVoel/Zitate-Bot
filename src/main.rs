@@ -17,7 +17,8 @@ use serenity::{
         },
         prelude::{
             ChannelType,
-            GatewayIntents
+            GatewayIntents,
+            MessageType
         }
     },
     prelude::*
@@ -91,7 +92,7 @@ impl EventHandler for Handler {
     async fn message(&self, ctx: Context, msg: Message) {
         let config = &self.config;
         let zitate_channel_id = *config.get_unsigned("channelZitate");
-        if msg.author.bot || msg.content == "" {
+        if msg.author.bot || msg.kind != MessageType::Regular {
             return;
         }
         else if *msg.channel_id.as_u64() == zitate_channel_id {
