@@ -18,7 +18,8 @@ use serenity::{
         prelude::{
             ChannelType,
             GatewayIntents,
-            MessageType
+            MessageType,
+            MessageUpdateEvent
         }
     },
     prelude::*
@@ -108,6 +109,24 @@ impl EventHandler for Handler {
         if *channel_id.as_u64() == *config.get_unsigned("channelZitate") {
             remove_zitat(msg_id, channel_id, &ctx).await;
         }
+    }
+
+    async fn message_update(&self, _ctx: Context, _: Option<Message>, _: Option<Message>, event: MessageUpdateEvent) {
+        if *event.channel_id.as_u64() != *self.config.get_unsigned("channelZitate") {
+            return;
+        }
+        let old_text: Option<String> = DB.query(format!("SELECT text FROM zitat:{}", event.id.0)).await.unwrap().take((0, "text")).unwrap();
+        if old_text == event.content {
+            return;
+        }
+        let new_text = event.content.unwrap();
+        log(&format!("Changing content of Zitat with ID {}:", event.id.0), "INFO");
+        log(old_text.as_ref().unwrap(), "INFO");
+        log("->", "INFO");
+        log(&new_text, "INFO");
+        DB.query(format!("UPDATE zitat:{0} SET text=type::string($text)", event.id.0))
+            .bind(("text", new_text)).await.unwrap();
+        log("Zitat successfully updated", "INFO");
     }
 }
 
