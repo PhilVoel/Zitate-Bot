@@ -26,6 +26,11 @@ use serenity::{
 };
 use std::{
     env,
+    sync::{
+        mpsc,
+        Arc,
+        Mutex
+    },
     time::{
         SystemTime,
         UNIX_EPOCH
@@ -54,6 +59,7 @@ use serde::{
 
 struct Handler {
     pub config: pml::PmlStruct,
+    pub ctx_producer: Arc<Mutex<mpsc::Sender<Context>>>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -83,11 +89,7 @@ static DB: Surreal<SurrealClient> = Surreal::init();
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _: Ready) {
         log("Logged in", "INFO");
-        loop {
-            let mut input = String::new();
-            io::stdin().read_line(&mut input).unwrap();
-            console_input_handler(input, &ctx, &self.config).await;
-        }
+        self.ctx_producer.lock().unwrap().send(ctx).unwrap();
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
@@ -132,6 +134,17 @@ impl EventHandler for Handler {
 
 #[tokio::main]
 async fn main() {
+    let (ctx_producer, ctx_receiver) = mpsc::channel();
+    let ctx_producer = Arc::new(Mutex::new(ctx_producer));
+    tokio::spawn(async move{
+        let config = pml::parse_file("config");
+        let ctx = ctx_receiver.recv().unwrap();
+        loop {
+            let mut input = String::new();
+            io::stdin().read_line(&mut input).unwrap();
+            console_input_handler(input, &ctx, &config).await;
+        }
+    });
     let config = pml::parse_file("config");
     let bot_token = config.get_string("botToken");
     DB.connect::<Ws>(config.get_string("dbUrl")).await.unwrap();
@@ -155,7 +168,7 @@ async fn main() {
         GatewayIntents::GUILD_MESSAGES |
         GatewayIntents::MESSAGE_CONTENT |
         GatewayIntents::DIRECT_MESSAGES;
-    let mut client = Client::builder(&bot_token, intents).event_handler(Handler{config}).await.expect("Error creating client");
+    let mut client = Client::builder(&bot_token, intents).event_handler(Handler{config, ctx_producer}).await.expect("Error creating client");
     if let Err(why) = client.start().await {
         log(&format!("Could not start client: {:?}", why), "ERR ");
     }
