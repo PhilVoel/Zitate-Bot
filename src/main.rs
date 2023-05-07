@@ -113,7 +113,7 @@ impl EventHandler for Handler {
         }
     }
 
-    async fn message_update(&self, _ctx: Context, _: Option<Message>, _: Option<Message>, event: MessageUpdateEvent) {
+    async fn message_update(&self, _: Context, _: Option<Message>, _: Option<Message>, event: MessageUpdateEvent) {
         if *event.channel_id.as_u64() != *self.config.get_unsigned("channelZitate") {
             return;
         }
