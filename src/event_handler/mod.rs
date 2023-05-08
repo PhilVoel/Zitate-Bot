@@ -171,10 +171,7 @@ impl EventHandler for Handler {
                 }
                 "fertig" if parent_id == bot_channel_id => {
                     if DB
-                        .query(format!(
-                            "SELECT * FROM 0 < (SELECT count(<-said) FROM zitat:{}).count",
-                            zitat_id
-                        ))
+                        .query(format!("SELECT * FROM 0 < (SELECT count(<-said) FROM zitat:{zitat_id}).count"))
                         .await
                         .unwrap()
                         .take::<Option<bool>>(0)

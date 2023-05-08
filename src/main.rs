@@ -207,33 +207,29 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
 }
 
 async fn delete_qa_thread(channel: ChannelId, ctx: &Context, config: &pml::PmlStruct) {
-    ctx.http.delete_channel(*channel.as_u64()).await.unwrap();
+    let channel_id = *channel.as_u64();
+    ctx.http.delete_channel(channel_id).await.unwrap();
     ctx.http
-        .delete_message(*config.get_unsigned("channelBot"), *channel.as_u64())
+        .delete_message(*config.get_unsigned("channelBot"), channel_id)
         .await
         .unwrap();
     log(
-        &format!("Deleted Thread for Zitat with ID {}", channel.as_u64()),
+        &format!("Deleted Thread for Zitat with ID {channel_id}"),
         "INFO",
     );
 }
 
 async fn add_qa(r#type: QAType, user: DbUser, id: u64) -> String {
+    let user_id = user.id;
     let already_said: Option<bool> = DB
-        .query(format!(
-            "SELECT * FROM zitat:{} IN (SELECT ->said.out as res FROM {})",
-            id, user.id
-        ))
+        .query(format!("SELECT * FROM zitat:{id} IN (SELECT ->said.out as res FROM {user_id})"))
         .await
         .unwrap()
         .take(0)
         .unwrap();
     let already_said = already_said.unwrap();
     let already_assisted: Option<bool> = DB
-        .query(format!(
-            "SELECT * FROM zitat:{} IN (SELECT ->said.out as res FROM {})",
-            id, user.id
-        ))
+        .query(format!("SELECT * FROM zitat:{id} IN (SELECT ->assisted.out as res FROM {user_id})"))
         .await
         .unwrap()
         .take(0)
@@ -252,17 +248,12 @@ async fn add_qa(r#type: QAType, user: DbUser, id: u64) -> String {
         QAType::Said => "said",
         QAType::Assisted => "assisted",
     };
-    DB.query(format!("RELATE {}->{}->zitat:{}", user.id, table_name, id))
+    DB.query(format!("RELATE {user_id}->{table_name}->zitat:{id}"))
         .await
         .unwrap();
-    log(
-        &format!(
-            "Added {} to {table_name} of Zitat with ID {id} in DB",
-            user.name
-        ),
-        "INFO",
-    );
-    format!("{} erfolgreich hinzugefügt.", user.name)
+    let user_name = user.name;
+    log(&format!("Added {user_name} to {table_name} of Zitat with ID {id} in DB"), "INFO");
+    format!("{user_name} erfolgreich hinzugefügt.")
 }
 
 fn get_percentage(count: &u16) -> f32 {
@@ -281,8 +272,7 @@ async fn get_ranking(r#type: RankingType) -> String {
     };
     let ranking: Vec<RankingResult>  = DB.query("SELECT count(), in.name as name FROM type::table($kategorie) GROUP BY name ORDER BY count DESC").bind(("kategorie", type_db)).await.unwrap().take(0).unwrap();
     format!(
-        "Ranking {} Zitate:\n{}",
-        type_de,
+        "Ranking {type_de} Zitate:\n{}",
         ranking
             .iter()
             .enumerate()
@@ -301,19 +291,19 @@ async fn get_ranking(r#type: RankingType) -> String {
 async fn get_user_stats(user: DbUser) -> String {
     let user_id = user.id;
     let said: Option<i32> = DB
-        .query(format!("SELECT count(->said) FROM {}", user_id))
+        .query(format!("SELECT count(->said) FROM {user_id}"))
         .await
         .unwrap()
         .take((0, "count"))
         .unwrap();
     let wrote: Option<i32> = DB
-        .query(format!("SELECT count(->wrote) FROM {}", user_id))
+        .query(format!("SELECT count(->wrote) FROM {user_id}"))
         .await
         .unwrap()
         .take((0, "count"))
         .unwrap();
     let assisted: Option<i32> = DB
-        .query(format!("SELECT count(->assisted) FROM {}", user_id))
+        .query(format!("SELECT count(->assisted) FROM {user_id}"))
         .await
         .unwrap()
         .take((0, "count"))
@@ -331,13 +321,10 @@ async fn get_user_stats(user: DbUser) -> String {
         None => 0,
     };
     format!(
-        "Stats für {}:\nGesagt: {} ({}%)\nGeschrieben: {} ({}%)\nAssisted: {} ({}%)",
+        "Stats für {}:\nGesagt: {said} ({}%)\nGeschrieben: {wrote} ({}%)\nAssisted: {assisted} ({}%)",
         user.name,
-        said,
         get_percentage(&said),
-        wrote,
         get_percentage(&wrote),
-        assisted,
         get_percentage(&assisted)
     )
 }
@@ -401,29 +388,26 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
             log("Author not found in DB", "WARN");
             add_user(&author_id, &zitat_msg.author.name).await;
             DbUser {
-                id: format!("user:{}", author_id),
+                id: format!("user:{author_id}"),
                 name: zitat_msg.author.name.to_string(),
                 uids: vec![author_id],
             }
         }
         Err(e) => {
-            log(&format!("Error while getting user from db: {}", e), "ERR ");
+            log(&format!("Error while getting user from db: {e}"), "ERR ");
             add_user(&author_id, &zitat_msg.author.name).await;
             DbUser {
-                id: format!("user:{}", author_id),
+                id: format!("user:{author_id}"),
                 name: zitat_msg.author.name.to_string(),
                 uids: vec![author_id],
             }
         }
     };
-    DB.query(format!("CREATE zitat:{0} SET text=type::string($text); RELATE {1}->wrote->zitat:{0} SET time=type::datetime($time)", msg_id, author.id))
+    DB.query(format!("CREATE zitat:{msg_id} SET text=type::string($text); RELATE {}->wrote->zitat:{msg_id} SET time=type::datetime($time)", author.id))
         .bind(("text", &zitat_msg.content))
         .bind(("time", zitat_msg.timestamp))
         .await.unwrap();
-    log(
-        &format!("Zitat with ID {} successfully inserted into DB", msg_id),
-        "INFO",
-    );
+    log(&format!("Zitat with ID {msg_id} successfully inserted into DB"), "INFO");
     let channel_id = *config.get_unsigned("channelBot");
     let bot_channel = if let Some(GuildChannel(bot_channel)) = ctx.cache.channel(channel_id) {
         bot_channel
@@ -460,7 +444,7 @@ async fn add_user(id: &u64, name: &str) {
         .bind(("id", id))
         .await
         .unwrap();
-    log(&format!("Added {} to DB", name), "INFO");
+    log(&format!("Added {name} to DB"), "INFO");
 }
 
 async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
@@ -470,16 +454,16 @@ async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     }
     let author = match get_user_from_db_by_uid(&author_id).await {
         Ok(Some(user_data)) => format!("{}", user_data.name),
-        Ok(None) => format!("{} (ID: {})", msg.author.tag(), author_id),
+        Ok(None) => format!("{} (ID: {author_id})", msg.author.tag()),
         Err(e) => {
-            log(&format!("Error while getting user from db: {}", e), "ERR ");
-            format!("{} (ID: {})", msg.author.tag(), author_id)
+            log(&format!("Error while getting user from db: {e}"), "ERR ");
+            format!("{} (ID: {author_id})", msg.author.tag())
         }
     };
-    log(&format!("Received DM from {}", author), "INFO");
+    log(&format!("Received DM from {author}"), "INFO");
     send_dm(
         config.get_unsigned("ownerId"),
-        format!("DM von {}:\n{}", author, msg.content),
+        format!("DM von {author}:\n{}", msg.content),
         ctx,
     )
     .await;
@@ -502,7 +486,7 @@ async fn get_user_from_db_by_name(name: &str) -> surrealdb::Result<Option<DbUser
 }
 
 async fn send_dm(id: &u64, message: String, ctx: &Context) {
-    println!("Sending DM to {}: {}", id, message);
+    println!("Sending DM to {id}: {message}");
     if let Some(user) = ctx.cache.user(*id) {
         user.direct_message(&ctx, |m| m.content(&message))
             .await

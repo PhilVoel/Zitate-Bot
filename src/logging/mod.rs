@@ -2,16 +2,16 @@ use std::{fs::OpenOptions, io::Write};
 use chrono::Local;
 use crate::START_TIME;
 
-pub fn log(message: &str, r#type: &str) {
-    let print_string = format!("[{}] [{}] {}", get_date_string(), r#type, message);
-    println!("{}", print_string);
+pub fn log(message: &str, log_level: &str) {
+    let print_string = format!("[{}] [{log_level}] {message}", get_date_string());
+    println!("{print_string}");
     log_to_file(print_string);
 }
 
 pub fn get_log_file_path() -> String {
     let file_path;
     unsafe {
-        file_path = format!("logs/{}.log", START_TIME);
+        file_path = format!("logs/{START_TIME}.log");
     }
     file_path
 }
