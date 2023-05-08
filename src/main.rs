@@ -1,4 +1,3 @@
-use chrono::prelude::*;
 use serde::{Deserialize, Serialize};
 use serenity::{
     async_trait,
@@ -11,7 +10,7 @@ use serenity::{
         gateway::Ready,
         id::{ChannelId, GuildId, MessageId, UserId as SerenityUserId},
         prelude::{
-            command::CommandOptionType, Activity, ChannelType, GatewayIntents, MessageType,
+            Activity, ChannelType, GatewayIntents, MessageType,
             MessageUpdateEvent,
         },
     },
@@ -19,8 +18,8 @@ use serenity::{
 };
 use std::{
     env,
-    fs::{self, OpenOptions},
-    io::{self, Write},
+    fs,
+    io,
     sync::{mpsc, Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -29,11 +28,11 @@ use surrealdb::{
     opt::auth::Database,
     Surreal,
 };
+mod event_handler;
+use event_handler::Handler;
+mod logging;
+use logging::*;
 
-struct Handler {
-    pub config: pml::PmlStruct,
-    pub ctx_producer: Arc<Mutex<mpsc::Sender<Context>>>,
-}
 
 #[derive(Serialize, Deserialize)]
 struct DbUser {
@@ -64,249 +63,6 @@ static mut START_TIME: u128 = 0;
 static mut OVERALL_ZITATE_COUNT: u16 = 0;
 static DB: Surreal<SurrealClient> = Surreal::init();
 
-#[async_trait]
-impl EventHandler for Handler {
-    async fn ready(&self, ctx: Context, _: Ready) {
-        if env::args()
-            .collect::<Vec<String>>()
-            .contains(&String::from("quiet"))
-        {
-            ctx.invisible().await;
-        } else {
-            ctx.set_activity(Activity::watching("#📃-zitate")).await;
-        }
-        log("Logged in", "INFO");
-
-        GuildId(*self.config.get_unsigned("guildId")).set_application_commands(&ctx.http, |commands| {
-            commands
-                .create_application_command(|command| command
-                                            .name("stats")
-                                            .description("Erhalte Statistiken von jemandem")
-                                            .create_option(|option| option
-                                                           .name("name")
-                                                           .description("Der, von dem du die Statistiken willst")
-                                                           .kind(CommandOptionType::String)))
-                .create_application_command(|command| command
-                                            .name("ranking")
-                                            .description("Rankt alle Mitglieder nach der Anzahl ihrer gesagten, assistierten oder geschriebenen Zitate")
-                                            .create_option(|option| option
-                                                           .name("kategorie")
-                                                           .description("Die Kategorie, nach der du ranken willst")
-                                                           .kind(CommandOptionType::String)
-                                                           .required(true)
-                                                           .add_string_choice("gesagt", "said")
-                                                           .add_string_choice("geschrieben", "wrote")
-                                                           .add_string_choice("assistiert", "assisted")))
-                .create_application_command(|command| command
-                                            .name("gesagt")
-                                            .description("Fügt einen Zitierten zum Zitat hinzu")
-                                            .create_option(|option| option
-                                                           .name("name")
-                                                           .description("Der, der das Zitat gesagt hat")
-                                                           .kind(CommandOptionType::String)
-                                                           .required(true)))
-                .create_application_command(|command| command
-                                            .name("assistiert")
-                                            .description("Fügt einen Assister zum Zitat hinzu")
-                                            .create_option(|option| option
-                                                           .name("name")
-                                                           .description("Der, der einen Assist gemacht hat")
-                                                           .kind(CommandOptionType::String)
-                                                           .required(true)))
-                .create_application_command(|command| command
-                                            .name("fertig")
-                                            .description("Alle Sager und Assister sind eingetragen; Thread wird gelöscht"))
-        }).await.unwrap();
-
-        self.ctx_producer.lock().unwrap().send(ctx).unwrap();
-    }
-
-    async fn message(&self, ctx: Context, msg: Message) {
-        let config = &self.config;
-        let zitate_channel_id = *config.get_unsigned("channelZitate");
-        if msg.author.bot || msg.kind != MessageType::Regular {
-            return;
-        } else if *msg.channel_id.as_u64() == zitate_channel_id {
-            register_zitat(msg, config, &ctx).await;
-        } else if let Channel::Private(_) = msg.channel(&ctx).await.unwrap() {
-            dm_handler(msg, config, &ctx).await;
-        }
-    }
-
-    async fn message_delete(
-        &self,
-        ctx: Context,
-        channel_id: ChannelId,
-        msg_id: MessageId,
-        _: Option<GuildId>,
-    ) {
-        let config = &self.config;
-        if *channel_id.as_u64() == *config.get_unsigned("channelZitate") {
-            remove_zitat(msg_id, channel_id, &ctx, &self.config).await;
-        }
-    }
-
-    async fn message_update(
-        &self,
-        _: Context,
-        _: Option<Message>,
-        _: Option<Message>,
-        event: MessageUpdateEvent,
-    ) {
-        if *event.channel_id.as_u64() != *self.config.get_unsigned("channelZitate") {
-            return;
-        }
-        let old_text: Option<String> = DB
-            .query(format!("SELECT text FROM zitat:{}", event.id.0))
-            .await
-            .unwrap()
-            .take((0, "text"))
-            .unwrap();
-        if old_text == event.content {
-            return;
-        }
-        let new_text = event.content.unwrap();
-        log(
-            &format!("Changing content of Zitat with ID {}:", event.id.0),
-            "INFO",
-        );
-        log(old_text.as_ref().unwrap(), "INFO");
-        log("->", "INFO");
-        log(&new_text, "INFO");
-        DB.query(format!(
-            "UPDATE zitat:{0} SET text=type::string($text)",
-            event.id.0
-        ))
-        .bind(("text", new_text))
-        .await
-        .unwrap();
-        log("Zitat successfully updated", "INFO");
-    }
-
-    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        if let Interaction::ApplicationCommand(command) = interaction {
-            let channel_id = *command.channel_id.as_u64();
-            let parent_id = match command.channel_id.to_channel(&ctx).await.unwrap() {
-                Channel::Guild(channel) => channel.parent_id.unwrap().0,
-                _ => return,
-            };
-            let channel = match command.channel_id.to_channel(&ctx).await.unwrap() {
-                Channel::Guild(channel) => channel,
-                _ => return,
-            };
-            let zitat_id = channel.name.parse::<u64>().unwrap();
-            let bot_channel_id = *self.config.get_unsigned("channelBot");
-            let response_text: String = match command.data.name.as_str() {
-                "stats" if channel_id == bot_channel_id => {
-                    let user = get_user_from_db_by_name(
-                        command
-                            .data
-                            .options
-                            .get(0)
-                            .unwrap()
-                            .value
-                            .as_ref()
-                            .unwrap()
-                            .as_str()
-                            .unwrap(),
-                    )
-                    .await
-                    .unwrap()
-                    .unwrap();
-                    get_user_stats(user).await
-                }
-                "ranking" if channel_id == bot_channel_id => {
-                    let r#type = match command
-                        .data
-                        .options
-                        .get(0)
-                        .unwrap()
-                        .value
-                        .as_ref()
-                        .unwrap()
-                        .as_str()
-                        .unwrap()
-                    {
-                        "said" => RankingType::Said,
-                        "wrote" => RankingType::Wrote,
-                        "assisted" => RankingType::Assisted,
-                        _ => return,
-                    };
-                    get_ranking(r#type).await
-                }
-                "gesagt" if parent_id == bot_channel_id => {
-                    add_qa(
-                        QAType::Said,
-                        get_user_from_db_by_name(
-                            command
-                                .data
-                                .options
-                                .get(0)
-                                .unwrap()
-                                .value
-                                .as_ref()
-                                .unwrap()
-                                .as_str()
-                                .unwrap(),
-                        )
-                        .await
-                        .unwrap()
-                        .unwrap(),
-                        zitat_id,
-                    )
-                    .await
-                }
-                "assistiert" if parent_id == bot_channel_id => {
-                    add_qa(
-                        QAType::Assisted,
-                        get_user_from_db_by_name(
-                            command
-                                .data
-                                .options
-                                .get(0)
-                                .unwrap()
-                                .value
-                                .as_ref()
-                                .unwrap()
-                                .as_str()
-                                .unwrap(),
-                        )
-                        .await
-                        .unwrap()
-                        .unwrap(),
-                        zitat_id,
-                    )
-                    .await
-                }
-                "fertig" if parent_id == bot_channel_id => {
-                    if DB
-                        .query(format!(
-                            "SELECT * FROM 0 < (SELECT count(<-said) FROM zitat:{}).count",
-                            zitat_id
-                        ))
-                        .await
-                        .unwrap()
-                        .take::<Option<bool>>(0)
-                        .unwrap()
-                        .unwrap()
-                    {
-                        delete_qa_thread(command.channel_id, &ctx, &self.config).await;
-                        return;
-                    } else {
-                        String::from("Nein, bist du nicht")
-                    }
-                }
-                _ => return,
-            };
-            command
-                .create_interaction_response(ctx.http, |response| {
-                    response.interaction_response_data(|message| message.content(response_text))
-                })
-                .await
-                .unwrap();
-        }
-    }
-}
 
 #[tokio::main]
 async fn main() {
@@ -367,7 +123,7 @@ async fn main() {
 
 async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlStruct) {
     let input = input.trim();
-    log_to_file(format!("[{}] > {}", get_date_string(), input));
+    log_to_file(format!("[{}] > {input}", get_date_string()));
     let result: Vec<String> = input.split(" ").map(|s| s.to_string()).collect();
     match result.get(0) {
         Some(s) if s == "zitat" => match result.get(1) {
@@ -635,33 +391,6 @@ async fn remove_zitat(
     }
 }
 
-fn log(message: &str, r#type: &str) {
-    let print_string = format!("[{}] [{}] {}", get_date_string(), r#type, message);
-    println!("{}", print_string);
-    log_to_file(print_string);
-}
-
-fn get_log_file_path() -> String {
-    let file_path;
-    unsafe {
-        file_path = format!("logs/{}.log", START_TIME);
-    }
-    file_path
-}
-
-fn log_to_file(print_string: String) {
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(get_log_file_path())
-        .unwrap();
-    file.write_all(print_string.as_bytes()).unwrap();
-}
-
-fn get_date_string() -> String {
-    let now = Local::now();
-    now.format("%d.%m.%Y %H:%M:%S").to_string()
-}
 
 async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     let SerenityUserId(author_id) = zitat_msg.author.id;
