@@ -223,7 +223,7 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
         },
         Some(s) if s == "exit" => {
             ctx.shard.shutdown_clean();
-            if env::args().collect::<Vec<String>>().contains(&"test".to_string()) {
+            if env::args().collect::<Vec<String>>().contains(&String::from("test")) {
                 fs::remove_file(get_log_file_path()).unwrap();
             }
             else {
