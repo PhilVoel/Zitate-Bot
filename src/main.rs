@@ -1,17 +1,13 @@
 use serde::{Deserialize, Serialize};
 use serenity::{
-    async_trait,
     model::{
-        application::interaction::Interaction,
         channel::{
-            Channel::{self, Guild as GuildChannel},
+            Channel::Guild as GuildChannel,
             Message,
         },
-        gateway::Ready,
         id::{ChannelId, GuildId, MessageId, UserId as SerenityUserId},
         prelude::{
-            Activity, ChannelType, GatewayIntents, MessageType,
-            MessageUpdateEvent,
+            ChannelType, GatewayIntents,
         },
     },
     prelude::*,

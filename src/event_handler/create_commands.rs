@@ -1,4 +1,7 @@
-use serenity::{builder::{CreateApplicationCommand, CreateApplicationCommands}, model::prelude::command::CommandOptionType};
+use serenity::{
+    builder::{CreateApplicationCommand, CreateApplicationCommands},
+    model::prelude::command::CommandOptionType,
+};
 
 pub fn create_all(commands: &mut CreateApplicationCommands) -> &mut CreateApplicationCommands {
     commands
@@ -13,10 +16,12 @@ fn stats(command: &mut CreateApplicationCommand) -> &mut CreateApplicationComman
     command
         .name("stats")
         .description("Erhalte Statistiken von jemandem")
-        .create_option(|option| option
-                       .name("name")
-                       .description("Der, von dem du die Statistiken willst")
-                       .kind(CommandOptionType::String))
+        .create_option(|option| {
+            option
+                .name("name")
+                .description("Der, von dem du die Statistiken willst")
+                .kind(CommandOptionType::String)
+        })
 }
 
 fn ranking(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
@@ -37,22 +42,26 @@ fn gesagt(command: &mut CreateApplicationCommand) -> &mut CreateApplicationComma
     command
         .name("gesagt")
         .description("Fügt einen Zitierten zum Zitat hinzu")
-        .create_option(|option| option
-                       .name("name")
-                       .description("Der, der das Zitat gesagt hat")
-                       .kind(CommandOptionType::String)
-                       .required(true))
+        .create_option(|option| {
+            option
+                .name("name")
+                .description("Der, der das Zitat gesagt hat")
+                .kind(CommandOptionType::String)
+                .required(true)
+        })
 }
 
 fn assistiert(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
     command
         .name("assistiert")
         .description("Fügt einen Assister zum Zitat hinzu")
-        .create_option(|option| option
-                       .name("name")
-                       .description("Der, der einen Assist gemacht hat")
-                       .kind(CommandOptionType::String)
-                       .required(true))
+        .create_option(|option| {
+            option
+                .name("name")
+                .description("Der, der einen Assist gemacht hat")
+                .kind(CommandOptionType::String)
+                .required(true)
+        })
 }
 
 fn fertig(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {

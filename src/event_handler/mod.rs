@@ -1,5 +1,24 @@
-use crate::*;
 mod create_commands;
+use crate::{
+    add_qa, delete_qa_thread, dm_handler, get_ranking, get_user_from_db_by_name, get_user_stats,
+    logging::log, register_zitat, remove_zitat, QAType, RankingType, DB,
+};
+use std::{
+    env,
+    sync::{mpsc, Arc, Mutex},
+};
+
+use serenity::{
+    async_trait,
+    model::{
+        application::interaction::Interaction,
+        channel::{Channel, Message},
+        gateway::Ready,
+        id::{ChannelId, GuildId, MessageId},
+        prelude::{Activity, MessageType, MessageUpdateEvent},
+    },
+    prelude::*,
+};
 
 pub struct Handler {
     pub config: pml::PmlStruct,
@@ -11,7 +30,10 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _: Ready) {
         log("Logged in", "INFO");
         set_status_based_on_start_parameter(&ctx).await;
-        GuildId(*self.config.get_unsigned("guildId")).set_application_commands(&ctx.http, |commands| create_commands::create_all(commands)).await.unwrap();
+        GuildId(*self.config.get_unsigned("guildId"))
+            .set_application_commands(&ctx.http, |commands| create_commands::create_all(commands))
+            .await
+            .unwrap();
         self.ctx_producer.lock().unwrap().send(ctx).unwrap();
     }
 
@@ -68,7 +90,10 @@ impl EventHandler for Handler {
         log(old_text.as_ref().unwrap(), "INFO");
         log("->", "INFO");
         log(&new_text, "INFO");
-        DB.query(format!("UPDATE zitat:{zitat_id} SET text=type::string($text)")).bind(("text", new_text))
+        DB.query(format!(
+            "UPDATE zitat:{zitat_id} SET text=type::string($text)"
+        ))
+        .bind(("text", new_text))
         .await
         .unwrap();
         log("Zitat successfully updated", "INFO");
@@ -171,7 +196,9 @@ impl EventHandler for Handler {
                 }
                 "fertig" if parent_id == bot_channel_id => {
                     if DB
-                        .query(format!("SELECT * FROM 0 < (SELECT count(<-said) FROM zitat:{zitat_id}).count"))
+                        .query(format!(
+                            "SELECT * FROM 0 < (SELECT count(<-said) FROM zitat:{zitat_id}).count"
+                        ))
                         .await
                         .unwrap()
                         .take::<Option<bool>>(0)
@@ -199,10 +226,10 @@ impl EventHandler for Handler {
 async fn set_status_based_on_start_parameter(ctx: &Context) {
     if env::args()
         .collect::<Vec<String>>()
-            .contains(&String::from("quiet"))
-            {
-                ctx.invisible().await;
-            } else {
-                ctx.set_activity(Activity::watching("#📃-zitate")).await;
-            }
+        .contains(&String::from("quiet"))
+    {
+        ctx.invisible().await;
+    } else {
+        ctx.set_activity(Activity::watching("#📃-zitate")).await;
+    }
 }
