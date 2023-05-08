@@ -20,8 +20,10 @@ use serenity::{
             GatewayIntents,
             MessageType,
             MessageUpdateEvent,
+            command::CommandOptionType,
             Activity
-        }
+        },
+        application::interaction::Interaction
     },
     prelude::*
 };
@@ -82,6 +84,12 @@ enum RankingType {
     Assisted
 }
 
+#[derive(PartialEq)]
+enum QAType {
+    Said,
+    Assisted
+}
+
 static mut START_TIME: u128 = 0;
 static mut OVERALL_ZITATE_COUNT: u16 = 0;
 static DB: Surreal<SurrealClient> = Surreal::init();
@@ -96,6 +104,48 @@ impl EventHandler for Handler {
             ctx.set_activity(Activity::watching("#📃-zitate")).await;
         }
         log("Logged in", "INFO");
+
+        GuildId(*self.config.get_unsigned("guildId")).set_application_commands(&ctx.http, |commands| {
+            commands
+                .create_application_command(|command| command
+                                            .name("stats")
+                                            .description("Erhalte Statistiken von jemandem")
+                                            .create_option(|option| option
+                                                           .name("name")
+                                                           .description("Der, von dem du die Statistiken willst")
+                                                           .kind(CommandOptionType::String)))
+                .create_application_command(|command| command
+                                            .name("ranking")
+                                            .description("Rankt alle Mitglieder nach der Anzahl ihrer gesagten, assistierten oder geschriebenen Zitate")
+                                            .create_option(|option| option
+                                                           .name("kategorie")
+                                                           .description("Die Kategorie, nach der du ranken willst")
+                                                           .kind(CommandOptionType::String)
+                                                           .required(true)
+                                                           .add_string_choice("gesagt", "said")
+                                                           .add_string_choice("geschrieben", "wrote")
+                                                           .add_string_choice("assistiert", "assisted")))
+                .create_application_command(|command| command
+                                            .name("gesagt")
+                                            .description("Fügt einen Zitierten zum Zitat hinzu")
+                                            .create_option(|option| option
+                                                           .name("name")
+                                                           .description("Der, der das Zitat gesagt hat")
+                                                           .kind(CommandOptionType::String)
+                                                           .required(true)))
+                .create_application_command(|command| command
+                                            .name("assistiert")
+                                            .description("Fügt einen Assister zum Zitat hinzu")
+                                            .create_option(|option| option
+                                                           .name("name")
+                                                           .description("Der, der einen Assist gemacht hat")
+                                                           .kind(CommandOptionType::String)
+                                                           .required(true)))
+                .create_application_command(|command| command
+                                            .name("fertig")
+                                            .description("Alle Sager und Assister sind eingetragen; Thread wird gelöscht"))
+        }).await.unwrap();
+
         self.ctx_producer.lock().unwrap().send(ctx).unwrap();
     }
 
@@ -136,6 +186,58 @@ impl EventHandler for Handler {
         DB.query(format!("UPDATE zitat:{0} SET text=type::string($text)", event.id.0))
             .bind(("text", new_text)).await.unwrap();
         log("Zitat successfully updated", "INFO");
+    }
+
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        if let Interaction::ApplicationCommand(command) = interaction {
+            let channel_id = *command.channel_id.as_u64();
+            let parent_id = match command.channel_id.to_channel(&ctx).await.unwrap() {
+                Channel::Guild(channel) => channel.parent_id.unwrap().0,
+                _ => return
+            };
+            let channel = match command.channel_id.to_channel(&ctx).await.unwrap() {
+                Channel::Guild(channel) => channel,
+                _ => return
+            };
+            let zitat_id = channel.name.parse::<u64>().unwrap();
+            let bot_channel_id = *self.config.get_unsigned("channelBot");
+            let response_text: String = match command.data.name.as_str() {
+                "stats" if channel_id == bot_channel_id => {
+                    let user = get_user_from_db_by_name(command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap()).await.unwrap().unwrap();
+                    get_user_stats(user).await
+                }
+                "ranking" if channel_id == bot_channel_id => {
+                    let r#type = match command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap() {
+                        "said" => RankingType::Said,
+                        "wrote" => RankingType::Wrote,
+                        "assisted" => RankingType::Assisted,
+                        _ => return
+                    };
+                    get_ranking(r#type).await
+                }
+                "gesagt" if parent_id == bot_channel_id => {
+                    add_qa(QAType::Said, get_user_from_db_by_name(command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap()).await.unwrap().unwrap(), zitat_id).await
+                }
+                "assistiert" if parent_id == bot_channel_id => {
+                    add_qa(QAType::Assisted, get_user_from_db_by_name(command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap()).await.unwrap().unwrap(), zitat_id).await
+                }
+                "fertig" if parent_id == bot_channel_id => {
+                    if DB.query(format!("SELECT * FROM 0 < (SELECT count(<-said) FROM zitat:{}).count", zitat_id)).await.unwrap().take::<Option<bool>>(0).unwrap().unwrap() {
+                        delete_qa_thread(command.channel_id, &ctx, &self.config).await;
+                        return;
+                    }
+                    else {
+                        String::from("Nein, bist du nicht")
+                    }
+                }
+                _ => return
+            };
+            command.create_interaction_response(ctx.http, |response| {
+                response.interaction_response_data(|message| {
+                    message.content(response_text)
+                })
+            }).await.unwrap();
+        }
     }
 }
 
@@ -240,6 +342,29 @@ async fn delete_qa_thread(channel: ChannelId, ctx: &Context, config: &pml::PmlSt
     ctx.http.delete_channel(*channel.as_u64()).await.unwrap();
     ctx.http.delete_message(*config.get_unsigned("channelBot"), *channel.as_u64()).await.unwrap();
     log(&format!("Deleted Thread for Zitat with ID {}", channel.as_u64()), "INFO");
+}
+
+async fn add_qa(r#type: QAType, user: DbUser, id: u64) -> String {
+    let already_said: Option<bool> = DB.query(format!("SELECT * FROM zitat:{} IN (SELECT ->said.out as res FROM {})", id, user.id)).await.unwrap().take(0).unwrap();
+    let already_said = already_said.unwrap();
+    let already_assisted: Option<bool> = DB.query(format!("SELECT * FROM zitat:{} IN (SELECT ->said.out as res FROM {})", id, user.id)).await.unwrap().take(0).unwrap();
+    let already_assisted = already_assisted.unwrap();
+    if already_said && r#type == QAType::Said || already_assisted && r#type == QAType::Assisted {
+        return String::from("Der ist dafür bereits eingetragen.");
+    }
+    if already_said && r#type == QAType::Assisted {
+        return String::from("Der hat schon einen Assist für das Zitat.");
+    }
+    if already_assisted && r#type == QAType::Said {
+        return String::from("Der hat das Zitat schon gesagt.");
+    }
+    let table_name = match r#type {
+        QAType::Said => "said",
+        QAType::Assisted => "assisted"
+    };
+    DB.query(format!("RELATE {}->{}->zitat:{}", user.id, table_name, id)).await.unwrap();
+    log(&format!("Added {} to {table_name} of Zitat with ID {id} in DB", user.name), "INFO");
+    format!("{} erfolgreich hinzugefügt.", user.name)
 }
 
 fn get_percentage(count: &u16) -> f32 {
