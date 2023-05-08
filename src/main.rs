@@ -630,6 +630,9 @@ async fn remove_zitat(
         config,
     )
     .await;
+    unsafe {
+        OVERALL_ZITATE_COUNT -= 1;
+    }
 }
 
 fn log(message: &str, r#type: &str) {
