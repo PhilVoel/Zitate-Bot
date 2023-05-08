@@ -116,7 +116,7 @@ impl EventHandler for Handler {
     async fn message_delete(&self, ctx: Context, channel_id: ChannelId, msg_id: MessageId, _: Option<GuildId>) {
         let config = &self.config;
         if *channel_id.as_u64() == *config.get_unsigned("channelZitate") {
-            remove_zitat(msg_id, channel_id, &ctx).await;
+            remove_zitat(msg_id, channel_id, &ctx, &self.config).await;
         }
     }
 
@@ -188,7 +188,7 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
     match result.get(0) {
         Some(s) if s == "zitat" => match result.get(1) {
             Some(s) if s == "add" => register_zitat(fetch_message_from_id(result.get(2).unwrap().parse::<u64>().unwrap(), *config.get_unsigned("channelZitate"), ctx).await.unwrap(), config, ctx).await,
-            Some(s) if s == "remove" => remove_zitat(MessageId(result.get(2).unwrap().parse::<u64>().unwrap()), ChannelId(*config.get_unsigned("channelZitate")), ctx).await,
+            Some(s) if s == "remove" => remove_zitat(MessageId(result.get(2).unwrap().parse::<u64>().unwrap()), ChannelId(*config.get_unsigned("channelZitate")), ctx, config).await,
             Some(_) => println!("Unknown subcommand"),
             None => println!("Missing subcommand")
         },
@@ -234,6 +234,12 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
         Some(_) => println!("Unknown command"),
         None => (),
     }
+}
+
+async fn delete_qa_thread(channel: ChannelId, ctx: &Context, config: &pml::PmlStruct) {
+    ctx.http.delete_channel(*channel.as_u64()).await.unwrap();
+    ctx.http.delete_message(*config.get_unsigned("channelBot"), *channel.as_u64()).await.unwrap();
+    log(&format!("Deleted Thread for Zitat with ID {}", channel.as_u64()), "INFO");
 }
 
 fn get_percentage(count: &u16) -> f32 {
@@ -287,7 +293,7 @@ async fn fetch_message_from_id(msg_id: u64, channel_id: u64, ctx: &Context) -> O
     }
 }
 
-async fn remove_zitat(msg_id: MessageId, channel_id: ChannelId, ctx: &Context) {
+async fn remove_zitat(msg_id: MessageId, channel_id: ChannelId, ctx: &Context, config: &pml::PmlStruct) {
     log(&format!("Deleting Zitat with ID {}", msg_id.as_u64()), "WARN");
     DB.query(format!("BEGIN TRANSACTION; DELETE zitat:{}; DELETE wrote, said, assisted WHERE out=zitat:{}; COMMIT TRANSACTION", msg_id, msg_id)).await.unwrap();
     if let Some(old_msg) = fetch_message_from_id(*msg_id.as_u64(), *channel_id.as_u64(), ctx).await {
@@ -299,6 +305,7 @@ async fn remove_zitat(msg_id: MessageId, channel_id: ChannelId, ctx: &Context) {
         log("Message not found in cache", "WARN");
     }
     log("Deleted from DB", "INFO");
+    delete_qa_thread(GuildId(*config.get_unsigned("guildId")).get_active_threads(&ctx.http).await.unwrap().threads.iter().find(|thread| thread.name() == msg_id.as_u64().to_string()).unwrap().id, ctx, config).await;
 }
 
 fn log(message: &str, r#type: &str) {
