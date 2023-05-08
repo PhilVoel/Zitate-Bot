@@ -19,7 +19,8 @@ use serenity::{
             ChannelType,
             GatewayIntents,
             MessageType,
-            MessageUpdateEvent
+            MessageUpdateEvent,
+            Activity
         }
     },
     prelude::*
@@ -88,6 +89,12 @@ static DB: Surreal<SurrealClient> = Surreal::init();
 #[async_trait]
 impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _: Ready) {
+        if env::args().collect::<Vec<String>>().contains(&String::from("quiet")) {
+            ctx.invisible().await;
+        }
+        else {
+            ctx.set_activity(Activity::watching("#📃-zitate")).await;
+        }
         log("Logged in", "INFO");
         self.ctx_producer.lock().unwrap().send(ctx).unwrap();
     }
