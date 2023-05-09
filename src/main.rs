@@ -63,13 +63,13 @@ async fn main() {
         }
     });
     let config = pml::parse_file("config");
-    let bot_token = config.get_string("botToken");
-    DB.connect::<Ws>(config.get_string("dbUrl")).await.unwrap();
+    let bot_token = config.get::<String>("botToken");
+    DB.connect::<Ws>(config.get::<String>("dbUrl").as_str()).await.unwrap();
     DB.signin(Database {
-        namespace: config.get_string("dbNs"),
-        database: config.get_string("dbName"),
-        username: config.get_string("dbUser"),
-        password: config.get_string("dbPass"),
+        namespace: config.get::<String>("dbNs"),
+        database: config.get::<String>("dbName"),
+        username: config.get::<String>("dbUser"),
+        password: config.get::<String>("dbPass"),
     })
     .await
     .unwrap();
@@ -116,7 +116,7 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
                 register_zitat(
                     fetch_message_from_id(
                         result.get(2).unwrap().parse::<u64>().unwrap(),
-                        *config.get_unsigned("channelZitate"),
+                        *config.get("channelZitate"),
                         ctx,
                     )
                     .await
@@ -129,7 +129,7 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
             Some(s) if s == "remove" => {
                 remove_zitat(
                     MessageId(result.get(2).unwrap().parse::<u64>().unwrap()),
-                    ChannelId(*config.get_unsigned("channelZitate")),
+                    ChannelId(*config.get("channelZitate")),
                     ctx,
                     config,
                 )
@@ -195,7 +195,7 @@ async fn delete_qa_thread(channel: ChannelId, ctx: &Context, config: &pml::PmlSt
     let channel_id = *channel.as_u64();
     ctx.http.delete_channel(channel_id).await.unwrap();
     ctx.http
-        .delete_message(*config.get_unsigned("channelBot"), channel_id)
+        .delete_message(*config.get("channelBot"), channel_id)
         .await
         .unwrap();
     log(
@@ -246,7 +246,7 @@ async fn remove_zitat(
     }
     log("Deleted from DB", "INFO");
     delete_qa_thread(
-        GuildId(*config.get_unsigned("guildId"))
+        GuildId(*config.get("guildId"))
             .get_active_threads(&ctx.http)
             .await
             .unwrap()
@@ -286,7 +286,7 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
         .bind(("time", zitat_msg.timestamp))
         .await.unwrap();
     log(&format!("Zitat with ID {msg_id} successfully inserted into DB"), "INFO");
-    let channel_id = *config.get_unsigned("channelBot");
+    let channel_id = *config.get("channelBot");
     let bot_channel = if let Some(GuildChannel(bot_channel)) = ctx.cache.channel(channel_id) {
         bot_channel
     } else if let GuildChannel(bot_channel) = ctx.http.get_channel(channel_id).await.unwrap() {
@@ -319,7 +319,7 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
 
 async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     let SerenityUserId(author_id) = msg.author.id;
-    if author_id == *config.get_unsigned("ownerId") {
+    if author_id == *config.get::<u64>("ownerId") {
         return;
     }
     let author = match get_user_from_db_by_uid(&author_id).await {
@@ -332,7 +332,7 @@ async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     };
     log(&format!("Received DM from {author}"), "INFO");
     send_dm(
-        config.get_unsigned("ownerId"),
+        config.get("ownerId"),
         format!("DM von {author}:\n{}", msg.content),
         ctx,
     )

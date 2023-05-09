@@ -30,7 +30,7 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _: Ready) {
         log("Logged in", "INFO");
         set_status_based_on_start_parameter(&ctx).await;
-        GuildId(*self.config.get_unsigned("guildId"))
+        GuildId(*self.config.get("guildId"))
             .set_application_commands(&ctx.http, |commands| create_commands::create_all(commands))
             .await
             .unwrap();
@@ -39,7 +39,7 @@ impl EventHandler for Handler {
 
     async fn message(&self, ctx: Context, msg: Message) {
         let config = &self.config;
-        let zitate_channel_id = *config.get_unsigned("channelZitate");
+        let zitate_channel_id = *config.get::<u64>("channelZitate");
         if msg.author.bot || msg.kind != MessageType::Regular {
             return;
         } else if *msg.channel_id.as_u64() == zitate_channel_id {
@@ -57,7 +57,7 @@ impl EventHandler for Handler {
         _: Option<GuildId>,
     ) {
         let config = &self.config;
-        if *channel_id.as_u64() == *config.get_unsigned("channelZitate") {
+        if *channel_id.as_u64() == *config.get::<u64>("channelZitate") {
             remove_zitat(msg_id, channel_id, &ctx, config).await;
         }
     }
@@ -69,7 +69,7 @@ impl EventHandler for Handler {
         _: Option<Message>,
         event: MessageUpdateEvent,
     ) {
-        if *event.channel_id.as_u64() != *self.config.get_unsigned("channelZitate") {
+        if *event.channel_id.as_u64() != *self.config.get::<u64>("channelZitate") {
             return;
         }
         let zitat_id = event.id.0;
@@ -111,7 +111,7 @@ impl EventHandler for Handler {
                 _ => return,
             };
             let zitat_id = channel.name.parse::<u64>().unwrap();
-            let bot_channel_id = *self.config.get_unsigned("channelBot");
+            let bot_channel_id = *self.config.get::<u64>("channelBot");
             let response_text: String = match command.data.name.as_str() {
                 "stats" if channel_id == bot_channel_id => {
                     let user = get_user_from_db_by_name(
