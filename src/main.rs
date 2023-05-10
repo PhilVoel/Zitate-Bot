@@ -29,6 +29,7 @@ mod logging;
 use logging::*;
 mod db;
 use db::*;
+mod discord;
 
 pub enum RankingType {
     Said,
