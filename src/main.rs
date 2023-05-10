@@ -30,9 +30,6 @@ use logging::*;
 mod db;
 use db::*;
 
-
-
-
 pub enum RankingType {
     Said,
     Wrote,
@@ -45,9 +42,7 @@ pub enum QAType {
     Assisted,
 }
 
-static mut START_TIME: u128 = 0;
 static mut OVERALL_ZITATE_COUNT: u16 = 0;
-
 
 #[tokio::main]
 async fn main() {
@@ -264,7 +259,6 @@ async fn remove_zitat(
     }
 }
 
-
 async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     let SerenityUserId(author_id) = zitat_msg.author.id;
     let msg_id = zitat_msg.id.as_u64();
@@ -316,7 +310,6 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
     }
 }
 
-
 async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     let SerenityUserId(author_id) = msg.author.id;
     if author_id == *config.get::<u64>("ownerId") {
@@ -338,7 +331,6 @@ async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     )
     .await;
 }
-
 
 async fn send_dm(id: &u64, message: String, ctx: &Context) {
     println!("Sending DM to {id}: {message}");

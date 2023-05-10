@@ -1,6 +1,6 @@
 use std::{fs::OpenOptions, io::Write};
 use chrono::Local;
-use crate::START_TIME;
+pub static mut START_TIME: u128 = 0;
 
 pub fn log(message: &str, log_level: &str) {
     let print_string = format!("[{}] [{log_level}] {message}", get_date_string());
