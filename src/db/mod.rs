@@ -4,13 +4,13 @@ use surrealdb::{Surreal, engine::remote::ws::Client as SurrealClient};
 use crate::{logging::log, QAType, RankingType, OVERALL_ZITATE_COUNT};
 
 #[derive(Serialize, Deserialize)]
-pub struct DbUser {
+pub struct User {
     pub id: String,
     pub name: String,
     uids: Vec<u64>,
 }
 
-impl DbUser {
+impl User {
     pub fn new(id: u64, name: String) -> Self {
         Self {
             id: format!("user:{id}"),
@@ -28,7 +28,7 @@ struct RankingResult {
 
 pub static DB: Surreal<SurrealClient> = Surreal::init();
 
-pub async fn add_qa(r#type: QAType, user: DbUser, id: u64) -> String {
+pub async fn add_qa(r#type: QAType, user: User, id: u64) -> String {
     let user_id = user.id;
     let already_said: Option<bool> = DB
         .query(format!("SELECT * FROM zitat:{id} IN (SELECT ->said.out as res FROM {user_id})"))
@@ -89,7 +89,7 @@ pub async fn get_ranking(r#type: RankingType) -> String {
     )
 }
 
-pub async fn get_user_stats(user: DbUser) -> String {
+pub async fn get_user_stats(user: User) -> String {
     let user_id = user.id;
     let said: Option<i32> = DB
         .query(format!("SELECT count(->said) FROM {user_id}"))
@@ -130,7 +130,7 @@ pub async fn get_user_stats(user: DbUser) -> String {
     )
 }
 
-pub async fn get_user_from_db_by_uid(id: &u64) -> surrealdb::Result<Option<DbUser>> {
+pub async fn get_user_from_db_by_uid(id: &u64) -> surrealdb::Result<Option<User>> {
     Ok(DB
         .query("SELECT name, uids, type::string(id) as id FROM user WHERE $id IN uids")
         .bind(("id", id))
@@ -138,7 +138,7 @@ pub async fn get_user_from_db_by_uid(id: &u64) -> surrealdb::Result<Option<DbUse
         .take(0)?)
 }
 
-pub async fn get_user_from_db_by_name(name: &str) -> surrealdb::Result<Option<DbUser>> {
+pub async fn get_user_from_db_by_name(name: &str) -> surrealdb::Result<Option<User>> {
     Ok(DB
         .query("SELECT name, uids, type::string(id) as id FROM user WHERE name = $name")
         .bind(("name", name))

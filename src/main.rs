@@ -235,12 +235,12 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
         Ok(None) => {
             log("Author not found in DB", "WARN");
             add_user(&author_id, &zitat_msg.author.name).await;
-            DbUser::new(author_id, zitat_msg.author.name.clone()) 
+            db::User::new(author_id, zitat_msg.author.name.clone()) 
         }
         Err(e) => {
             log(&format!("Error while getting user from db: {e}"), "ERR ");
             add_user(&author_id, &zitat_msg.author.name).await;
-            DbUser::new(author_id, zitat_msg.author.name.clone()) 
+            db::User::new(author_id, zitat_msg.author.name.clone()) 
         }
     };
     DB.query(format!("CREATE zitat:{msg_id} SET text=type::string($text); RELATE {}->wrote->zitat:{msg_id} SET time=type::datetime($time)", author.id))
