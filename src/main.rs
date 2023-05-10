@@ -199,17 +199,6 @@ async fn delete_qa_thread(channel: ChannelId, ctx: &Context, config: &pml::PmlSt
     );
 }
 
-
-fn get_percentage(count: &u16) -> f32 {
-    let total;
-    unsafe {
-        total = OVERALL_ZITATE_COUNT;
-    }
-    (*count as f32 * 10_000.0 / total as f32).round() / 100.0
-}
-
-
-
 async fn fetch_message_from_id(msg_id: u64, channel_id: u64, ctx: &Context) -> Option<Message> {
     if let Some(cache_result) = ctx.cache.message(channel_id, msg_id) {
         Some(cache_result)

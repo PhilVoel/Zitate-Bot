@@ -1,8 +1,7 @@
-use crate::get_percentage;
 use serde::{Serialize, Deserialize};
 use surrealdb::{Surreal, engine::remote::ws::Client as SurrealClient};
 
-use crate::{logging::log, QAType, RankingType};
+use crate::{logging::log, QAType, RankingType, OVERALL_ZITATE_COUNT};
 
 #[derive(Serialize, Deserialize)]
 pub struct DbUser {
@@ -154,4 +153,12 @@ pub async fn add_user(id: &u64, name: &str) {
         .await
         .unwrap();
     log(&format!("Added {name} to DB"), "INFO");
+}
+
+fn get_percentage(count: &u16) -> f32 {
+    let total;
+    unsafe {
+        total = OVERALL_ZITATE_COUNT;
+    }
+    (*count as f32 * 10_000.0 / total as f32).round() / 100.0
 }
