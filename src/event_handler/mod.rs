@@ -129,6 +129,7 @@ impl EventHandler for Handler {
                 "stats" if channel_id == bot_channel_id => {
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
                     let user = get_user_from_db_by_name(
                         command
                             .data
@@ -146,6 +147,8 @@ impl EventHandler for Handler {
                     .unwrap();
                     get_user_stats(user).await
 =======
+=======
+>>>>>>> 4bc6433 (/gesagt, /assisted, /stats now allow pings)
                     let user = match command.data.options.get(0) {
                         Some(input) => {
                             let input = input.value.as_ref().unwrap().as_str().unwrap();
@@ -167,6 +170,7 @@ impl EventHandler for Handler {
                             String::from("Error looking up user in DB")
                         }
                     }
+<<<<<<< HEAD
 >>>>>>> 4bc6433 (/gesagt, /assisted, /stats now allow pings)
 =======
                     let user = command.data.options.get(0).unwrap();
@@ -176,6 +180,8 @@ impl EventHandler for Handler {
                         .unwrap();
                     user::get_stats(user).await
 >>>>>>> 765829a (Refactored a lot of stuff)
+=======
+>>>>>>> 4bc6433 (/gesagt, /assisted, /stats now allow pings)
                 }
                 "ranking" if channel_id == bot_channel_id => {
                     let r#type = match command
@@ -197,6 +203,7 @@ impl EventHandler for Handler {
                     get_ranking(r#type).await
                 }
                 "gesagt" if parent_id == bot_channel_id => {
+<<<<<<< HEAD
 <<<<<<< HEAD
                     add_qa(
                         QAType::Said,
@@ -262,6 +269,27 @@ impl EventHandler for Handler {
                     }
                 }
                 "assistiert" if parent_id == bot_channel_id => {
+=======
+                    let input = command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap();
+                    let len = input.len()-1;
+                    match
+                        match input[2..len].parse::<u64>() {
+                            Ok(id) => user::get(&id).await,
+                            Err(_) => user::get(&input.to_string()).await,
+                        }
+                    {
+                        Ok(option) => match option {
+                            Some(user) => add_qa(QAType::Said, user, zitat_id).await,
+                            None => "User not found".to_string(),
+                        },
+                        Err(e) => {
+                            log(&format!("Error getting user from DB: {e}"), "ERR ");
+                            String::from("Error looking up user in DB")
+                        }
+                    }
+                }
+                "assistiert" if parent_id == bot_channel_id => {
+>>>>>>> 4bc6433 (/gesagt, /assisted, /stats now allow pings)
                     let input = command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap();
                     let len = input.len()-1;
                     match
@@ -279,6 +307,9 @@ impl EventHandler for Handler {
                             String::from("Error looking up user in DB")
                         }
                     }
+<<<<<<< HEAD
+>>>>>>> 4bc6433 (/gesagt, /assisted, /stats now allow pings)
+=======
 >>>>>>> 4bc6433 (/gesagt, /assisted, /stats now allow pings)
                 }
                 "fertig" if parent_id == bot_channel_id => {
