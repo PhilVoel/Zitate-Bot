@@ -1,21 +1,19 @@
 mod create_commands;
 use crate::{
-    add_qa, delete_qa_thread, dm_handler, get_ranking, get_user_from_db_by_name, get_user_stats,
-    logging::log, register_zitat, remove_zitat, QAType, RankingType, DB,
+    add_qa, delete_qa_thread, get_ranking, user, send_dm,
+    logging::log, register_zitat, remove_zitat, QAType, RankingType, DB, set_status_based_on_start_parameter
 };
-use std::{
-    env,
-    sync::{mpsc, Arc, Mutex},
-};
+use std::sync::{mpsc, Arc, Mutex};
 
 use serenity::{
     async_trait,
     model::{
         application::interaction::Interaction,
+        //application::interaction::{Interaction, application_command::ApplicationCommandInteraction},
         channel::{Channel, Message},
         gateway::Ready,
-        id::{ChannelId, GuildId, MessageId},
-        prelude::{Activity, MessageType, MessageUpdateEvent},
+        id::{ChannelId, GuildId, MessageId, UserId as SerenityUserId},
+        prelude::{MessageType, MessageUpdateEvent},
     },
     prelude::*,
 };
@@ -24,6 +22,21 @@ pub struct Handler {
     pub config: pml::PmlStruct,
     pub ctx_producer: Arc<Mutex<mpsc::Sender<Context>>>,
 }
+
+/*trait ApplicationCommandInteractionExt {
+    async fn reply(&self, ctx: &Context, content: &str);
+}
+
+impl ApplicationCommandInteractionExt for ApplicationCommandInteraction {
+    async fn reply(&self, ctx: &Context, content: &str) {
+            self
+                .create_interaction_response(ctx.http, |response| {
+                    response.interaction_response_data(|message| message.content(response_text))
+                })
+                .await
+                .unwrap();
+    }
+}*/
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -115,6 +128,7 @@ impl EventHandler for Handler {
             let response_text: String = match command.data.name.as_str() {
                 "stats" if channel_id == bot_channel_id => {
 <<<<<<< HEAD
+<<<<<<< HEAD
                     let user = get_user_from_db_by_name(
                         command
                             .data
@@ -154,6 +168,14 @@ impl EventHandler for Handler {
                         }
                     }
 >>>>>>> 4bc6433 (/gesagt, /assisted, /stats now allow pings)
+=======
+                    let user = command.data.options.get(0).unwrap();
+                    let user = user::get(&user.value.as_ref().unwrap().as_str().unwrap().to_string())
+                        .await
+                        .unwrap()
+                        .unwrap();
+                    user::get_stats(user).await
+>>>>>>> 765829a (Refactored a lot of stuff)
                 }
                 "ranking" if channel_id == bot_channel_id => {
                     let r#type = match command
@@ -178,8 +200,8 @@ impl EventHandler for Handler {
 <<<<<<< HEAD
                     add_qa(
                         QAType::Said,
-                        get_user_from_db_by_name(
-                            command
+                        user::get(
+                            &command
                                 .data
                                 .options
                                 .get(0)
@@ -188,7 +210,8 @@ impl EventHandler for Handler {
                                 .as_ref()
                                 .unwrap()
                                 .as_str()
-                                .unwrap(),
+                                .unwrap()
+                                .to_string(),
                         )
                         .await
                         .unwrap()
@@ -200,8 +223,8 @@ impl EventHandler for Handler {
                 "assistiert" if parent_id == bot_channel_id => {
                     add_qa(
                         QAType::Assisted,
-                        get_user_from_db_by_name(
-                            command
+                        user::get(
+                            &command
                                 .data
                                 .options
                                 .get(0)
@@ -210,7 +233,8 @@ impl EventHandler for Handler {
                                 .as_ref()
                                 .unwrap()
                                 .as_str()
-                                .unwrap(),
+                                .unwrap()
+                                .to_string(),
                         )
                         .await
                         .unwrap()
@@ -268,7 +292,7 @@ impl EventHandler for Handler {
                         .unwrap()
                         .unwrap()
                     {
-                        delete_qa_thread(command.channel_id, &ctx, &self.config).await;
+                        delete_qa_thread(*command.channel_id.as_u64(), &ctx, &self.config).await;
                         return;
                     } else {
                         String::from("Nein, bist du nicht")
@@ -286,13 +310,24 @@ impl EventHandler for Handler {
     }
 }
 
-async fn set_status_based_on_start_parameter(ctx: &Context) {
-    if env::args()
-        .collect::<Vec<String>>()
-        .contains(&String::from("quiet"))
-    {
-        ctx.invisible().await;
-    } else {
-        ctx.set_activity(Activity::watching("#📃-zitate")).await;
+async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
+    let SerenityUserId(author_id) = msg.author.id;
+    if author_id == *config.get::<u64>("ownerId") {
+        return;
     }
+    let author = match user::get(&author_id).await {
+        Ok(Some(user_data)) => format!("{}", user_data.name),
+        Ok(None) => format!("{} (ID: {author_id})", msg.author.tag()),
+        Err(e) => {
+            log(&format!("Error while getting user from db: {e}"), "ERR ");
+            format!("{} (ID: {author_id})", msg.author.tag())
+        }
+    };
+    log(&format!("Received DM from {author}"), "INFO");
+    send_dm(
+        config.get("ownerId"),
+        format!("DM von {author}:\n{}", msg.content),
+        ctx,
+    )
+    .await;
 }

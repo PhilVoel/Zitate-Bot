@@ -1,32 +1,20 @@
 use serenity::{
     model::{
-        channel::{
-            Channel::Guild as GuildChannel,
-            Message,
-        },
-        id::{ChannelId, GuildId, MessageId, UserId as SerenityUserId},
-        prelude::{
-            ChannelType, GatewayIntents,
-        },
+        channel::Message,
+        id::{ChannelId, MessageId},
     },
     prelude::*,
 };
 use std::{
     env,
-    fs,
     io,
     sync::{mpsc, Arc, Mutex},
     time::{SystemTime, UNIX_EPOCH},
 };
-use surrealdb::{
-    engine::remote::ws::Ws,
-    opt::auth::Database
-};
 
 mod event_handler;
-use event_handler::Handler;
 mod logging;
-use logging::*;
+use logging::{log, log_to_file, START_TIME, get_date_string};
 mod db;
 use db::*;
 mod discord;
@@ -60,17 +48,7 @@ async fn main() {
         }
     });
     let config = pml::parse_file("config");
-    let bot_token = config.get::<String>("botToken");
-    DB.connect::<Ws>(config.get::<String>("dbUrl").as_str()).await.unwrap();
-    DB.signin(Database {
-        namespace: config.get::<String>("dbNs"),
-        database: config.get::<String>("dbName"),
-        username: config.get::<String>("dbUser"),
-        password: config.get::<String>("dbPass"),
-    })
-    .await
-    .unwrap();
-
+    db::init(&config).await;
     unsafe {
         START_TIME = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -87,17 +65,7 @@ async fn main() {
             None => 0,
         };
     }
-    let intents = GatewayIntents::GUILDS
-        | GatewayIntents::GUILD_MESSAGES
-        | GatewayIntents::MESSAGE_CONTENT
-        | GatewayIntents::DIRECT_MESSAGES;
-    let mut client = Client::builder(&bot_token, intents)
-        .event_handler(Handler {
-            config,
-            ctx_producer,
-        })
-        .await
-        .expect("Error creating client");
+    let mut client = discord::init_client(config, ctx_producer).await;
     if let Err(why) = client.start().await {
         log(&format!("Could not start client: {:?}", why), "ERR ");
     }
@@ -137,18 +105,18 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
         },
         Some(s) if s == "user" => match result.get(1) {
             Some(s) if s == "add" => {
-                add_user(
+                user::add(
                     &result.get(3).unwrap().parse::<u64>().unwrap(),
                     result.get(2).unwrap(),
                 )
                 .await;
             }
             Some(s) if s == "stats" => {
-                match get_user_from_db_by_name(result.get(2).unwrap())
+                match user::get(result.get(2).unwrap())
                     .await
                     .unwrap()
                 {
-                    Some(user) => println!("{}", get_user_stats(user).await),
+                    Some(user) => println!("{}", user::get_stats(user).await),
                     None => println!("User not found"),
                 }
             }
@@ -177,7 +145,7 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
                 .collect::<Vec<String>>()
                 .contains(&String::from("test"))
             {
-                fs::remove_file(get_log_file_path()).unwrap();
+                logging::delete();
             } else {
                 log("Exiting...", "INFO");
             }
@@ -208,94 +176,16 @@ async fn remove_zitat(
         log("Message not found in cache", "WARN");
     }
     log("Deleted from DB", "INFO");
-    delete_qa_thread(
-        GuildId(*config.get("guildId"))
-            .get_active_threads(&ctx.http)
-            .await
-            .unwrap()
-            .threads
-            .iter()
-            .find(|thread| thread.name() == msg_id.as_u64().to_string())
-            .unwrap()
-            .id,
-        ctx,
-        config,
-    )
-    .await;
+    delete_qa_thread(*msg_id.as_u64(), ctx, config).await;
     unsafe {
         OVERALL_ZITATE_COUNT -= 1;
     }
 }
 
 async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Context) {
-    let SerenityUserId(author_id) = zitat_msg.author.id;
-    let msg_id = zitat_msg.id.as_u64();
-    let author = match get_user_from_db_by_uid(&author_id).await {
-        Ok(Some(user_data)) => user_data,
-        Ok(None) => {
-            log("Author not found in DB", "WARN");
-            add_user(&author_id, &zitat_msg.author.name).await;
-            db::User::new(author_id, zitat_msg.author.name.clone()) 
-        }
-        Err(e) => {
-            log(&format!("Error while getting user from db: {e}"), "ERR ");
-            add_user(&author_id, &zitat_msg.author.name).await;
-            db::User::new(author_id, zitat_msg.author.name.clone()) 
-        }
-    };
-    DB.query(format!("CREATE zitat:{msg_id} SET text=type::string($text); RELATE {}->wrote->zitat:{msg_id} SET time=type::datetime($time)", author.id))
-        .bind(("text", &zitat_msg.content))
-        .bind(("time", zitat_msg.timestamp))
-        .await.unwrap();
-    log(&format!("Zitat with ID {msg_id} successfully inserted into DB"), "INFO");
-    let channel_id = *config.get("channelBot");
-    let bot_channel = if let Some(GuildChannel(bot_channel)) = ctx.cache.channel(channel_id) {
-        bot_channel
-    } else if let GuildChannel(bot_channel) = ctx.http.get_channel(channel_id).await.unwrap() {
-        bot_channel
-    } else {
-        log("Could not get #zitate-bot", "ERR ");
-        return;
-    };
-    let thread_msg = bot_channel
-        .say(
-            &ctx.http,
-            format!("{}\n{}", zitat_msg.link(), zitat_msg.content),
-        )
-        .await
-        .unwrap();
-    ChannelId(channel_id)
-        .create_public_thread(&ctx.http, thread_msg, |thread| {
-            thread
-                .name(msg_id.to_string())
-                .kind(ChannelType::PublicThread)
-        })
-        .await
-        .unwrap();
-    log("Created thread in #zitate-bot", "INFO");
     unsafe {
         OVERALL_ZITATE_COUNT += 1;
     }
-}
-
-async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
-    let SerenityUserId(author_id) = msg.author.id;
-    if author_id == *config.get::<u64>("ownerId") {
-        return;
-    }
-    let author = match get_user_from_db_by_uid(&author_id).await {
-        Ok(Some(user_data)) => format!("{}", user_data.name),
-        Ok(None) => format!("{} (ID: {author_id})", msg.author.tag()),
-        Err(e) => {
-            log(&format!("Error while getting user from db: {e}"), "ERR ");
-            format!("{} (ID: {author_id})", msg.author.tag())
-        }
-    };
-    log(&format!("Received DM from {author}"), "INFO");
-    send_dm(
-        config.get("ownerId"),
-        format!("DM von {author}:\n{}", msg.content),
-        ctx,
-    )
-    .await;
+    db::insert_zitat(&zitat_msg).await;
+    discord::create_qa_thread(&zitat_msg, config, ctx).await;
 }

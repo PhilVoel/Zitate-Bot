@@ -1,4 +1,4 @@
-use std::{fs::OpenOptions, io::Write};
+use std::{fs::{OpenOptions, self}, io::Write};
 use chrono::Local;
 pub static mut START_TIME: u128 = 0;
 
@@ -8,7 +8,7 @@ pub fn log(message: &str, log_level: &str) {
     log_to_file(print_string);
 }
 
-pub fn get_log_file_path() -> String {
+fn get_log_file_path() -> String {
     let file_path;
     unsafe {
         file_path = format!("logs/{START_TIME}.log");
@@ -28,4 +28,8 @@ pub fn log_to_file(print_string: String) {
 pub fn get_date_string() -> String {
     let now = Local::now();
     now.format("%d.%m.%Y %H:%M:%S").to_string()
+}
+
+pub fn delete() {
+    fs::remove_file(get_log_file_path()).unwrap();
 }

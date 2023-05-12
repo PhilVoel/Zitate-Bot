@@ -1,24 +1,12 @@
-use serde::{Serialize, Deserialize};
-use surrealdb::{Surreal, engine::remote::ws::Client as SurrealClient};
+use pml::PmlStruct;
+use serde::Deserialize;
+use serenity::model::{prelude::Message, id::UserId as SerenityUserId};
+use surrealdb::{Surreal, engine::remote::ws::{Client as SurrealClient, Ws}, opt::auth::Database};
 
 use crate::{logging::log, QAType, RankingType, OVERALL_ZITATE_COUNT};
 
-#[derive(Serialize, Deserialize)]
-pub struct User {
-    pub id: String,
-    pub name: String,
-    uids: Vec<u64>,
-}
-
-impl User {
-    pub fn new(id: u64, name: String) -> Self {
-        Self {
-            id: format!("user:{id}"),
-            name,
-            uids: vec![id],
-        }
-    }
-}
+pub mod user;
+pub use user::User;
 
 #[derive(Deserialize)]
 struct RankingResult {
@@ -89,71 +77,18 @@ pub async fn get_ranking(r#type: RankingType) -> String {
     )
 }
 
-pub async fn get_user_stats(user: User) -> String {
-    let user_id = user.id;
-    let said: Option<i32> = DB
-        .query(format!("SELECT count(->said) FROM {user_id}"))
-        .await
-        .unwrap()
-        .take((0, "count"))
-        .unwrap();
-    let wrote: Option<i32> = DB
-        .query(format!("SELECT count(->wrote) FROM {user_id}"))
-        .await
-        .unwrap()
-        .take((0, "count"))
-        .unwrap();
-    let assisted: Option<i32> = DB
-        .query(format!("SELECT count(->assisted) FROM {user_id}"))
-        .await
-        .unwrap()
-        .take((0, "count"))
-        .unwrap();
-    let said: u16 = match said {
-        Some(s) => s as u16,
-        None => 0,
-    };
-    let wrote: u16 = match wrote {
-        Some(s) => s as u16,
-        None => 0,
-    };
-    let assisted: u16 = match assisted {
-        Some(s) => s as u16,
-        None => 0,
-    };
-    format!(
-        "Stats für {}:\nGesagt: {said} ({}%)\nGeschrieben: {wrote} ({}%)\nAssisted: {assisted} ({}%)",
-        user.name,
-        get_percentage(&said),
-        get_percentage(&wrote),
-        get_percentage(&assisted)
-    )
+pub async fn init(config: &PmlStruct) {
+    DB.connect::<Ws>(config.get::<String>("dbUrl").as_str()).await.unwrap();
+    DB.signin(Database {
+        namespace: config.get::<String>("dbNs"),
+        database: config.get::<String>("dbName"),
+        username: config.get::<String>("dbUser"),
+        password: config.get::<String>("dbPass"),
+    })
+    .await
+    .unwrap();
 }
 
-pub async fn get_user_from_db_by_uid(id: &u64) -> surrealdb::Result<Option<User>> {
-    Ok(DB
-        .query("SELECT name, uids, type::string(id) as id FROM user WHERE $id IN uids")
-        .bind(("id", id))
-        .await?
-        .take(0)?)
-}
-
-pub async fn get_user_from_db_by_name(name: &str) -> surrealdb::Result<Option<User>> {
-    Ok(DB
-        .query("SELECT name, uids, type::string(id) as id FROM user WHERE name = $name")
-        .bind(("name", name))
-        .await?
-        .take(0)?)
-}
-
-pub async fn add_user(id: &u64, name: &str) {
-    DB.query("CREATE type::thing('user', $id) SET name=$name, uids=[$id]")
-        .bind(("name", name))
-        .bind(("id", id))
-        .await
-        .unwrap();
-    log(&format!("Added {name} to DB"), "INFO");
-}
 
 fn get_percentage(count: &u16) -> f32 {
     let total;
@@ -161,4 +96,27 @@ fn get_percentage(count: &u16) -> f32 {
         total = OVERALL_ZITATE_COUNT;
     }
     (*count as f32 * 10_000.0 / total as f32).round() / 100.0
+}
+
+pub async fn insert_zitat(zitat_msg: &Message) {
+    let SerenityUserId(author_id) = zitat_msg.author.id;
+    let msg_id = zitat_msg.id.as_u64();
+    let author = match user::get(&author_id).await {
+        Ok(Some(user_data)) => user_data,
+        Ok(None) => {
+            log("Author not found in DB", "WARN");
+            user::add(&author_id, &zitat_msg.author.name).await;
+            User::new(author_id, zitat_msg.author.name.clone()) 
+        }
+        Err(e) => {
+            log(&format!("Error while getting user from db: {e}"), "ERR ");
+            user::add(&author_id, &zitat_msg.author.name).await;
+            User::new(author_id, zitat_msg.author.name.clone()) 
+        }
+    };
+    DB.query(format!("CREATE zitat:{msg_id} SET text=type::string($text); RELATE {}->wrote->zitat:{msg_id} SET time=type::datetime($time)", author.id))
+        .bind(("text", &zitat_msg.content))
+        .bind(("time", zitat_msg.timestamp))
+        .await.unwrap();
+    log(&format!("Zitat with ID {msg_id} successfully inserted into DB"), "INFO");
 }
