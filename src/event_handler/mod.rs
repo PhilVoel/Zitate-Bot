@@ -114,6 +114,7 @@ impl EventHandler for Handler {
             let bot_channel_id = *self.config.get::<u64>("channelBot");
             let response_text: String = match command.data.name.as_str() {
                 "stats" if channel_id == bot_channel_id => {
+<<<<<<< HEAD
                     let user = get_user_from_db_by_name(
                         command
                             .data
@@ -130,6 +131,29 @@ impl EventHandler for Handler {
                     .unwrap()
                     .unwrap();
                     get_user_stats(user).await
+=======
+                    let user = match command.data.options.get(0) {
+                        Some(input) => {
+                            let input = input.value.as_ref().unwrap().as_str().unwrap();
+                            let len = input.len()-1;
+                            match input[2..len].parse::<u64>() {
+                                Ok(id) => user::get(&id).await,
+                                Err(_) => user::get(&input.to_string()).await,
+                            }
+                        }
+                        None => user::get(&command.user.id.0).await
+                    };
+                    match user {
+                        Ok(option) => match option {
+                            Some(user) => user::get_stats(user).await,
+                            None => "User not found".to_string(),
+                        },
+                        Err(e) => {
+                            log(&format!("Error getting user from DB: {e}"), "ERR ");
+                            String::from("Error looking up user in DB")
+                        }
+                    }
+>>>>>>> 4bc6433 (/gesagt, /assisted, /stats now allow pings)
                 }
                 "ranking" if channel_id == bot_channel_id => {
                     let r#type = match command
@@ -151,6 +175,7 @@ impl EventHandler for Handler {
                     get_ranking(r#type).await
                 }
                 "gesagt" if parent_id == bot_channel_id => {
+<<<<<<< HEAD
                     add_qa(
                         QAType::Said,
                         get_user_from_db_by_name(
@@ -193,6 +218,44 @@ impl EventHandler for Handler {
                         zitat_id,
                     )
                     .await
+=======
+                    let input = command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap();
+                    let len = input.len()-1;
+                    match
+                        match input[2..len].parse::<u64>() {
+                            Ok(id) => user::get(&id).await,
+                            Err(_) => user::get(&input.to_string()).await,
+                        }
+                    {
+                        Ok(option) => match option {
+                            Some(user) => add_qa(QAType::Said, user, zitat_id).await,
+                            None => "User not found".to_string(),
+                        },
+                        Err(e) => {
+                            log(&format!("Error getting user from DB: {e}"), "ERR ");
+                            String::from("Error looking up user in DB")
+                        }
+                    }
+                }
+                "assistiert" if parent_id == bot_channel_id => {
+                    let input = command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap();
+                    let len = input.len()-1;
+                    match
+                        match input[2..len].parse::<u64>() {
+                            Ok(id) => user::get(&id).await,
+                            Err(_) => user::get(&input.to_string()).await,
+                        }
+                    {
+                        Ok(option) => match option {
+                            Some(user) => add_qa(QAType::Assisted, user, zitat_id).await,
+                            None => "User not found".to_string(),
+                        },
+                        Err(e) => {
+                            log(&format!("Error getting user from DB: {e}"), "ERR ");
+                            String::from("Error looking up user in DB")
+                        }
+                    }
+>>>>>>> 4bc6433 (/gesagt, /assisted, /stats now allow pings)
                 }
                 "fertig" if parent_id == bot_channel_id => {
                     if DB
