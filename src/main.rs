@@ -176,7 +176,7 @@ async fn remove_zitat(
         log("Message not found in cache", "WARN");
     }
     log("Deleted from DB", "INFO");
-    delete_qa_thread(*msg_id.as_u64(), ctx, config).await;
+    delete_qa_thread(msg_id.0.to_string(), ctx, config).await;
     unsafe {
         OVERALL_ZITATE_COUNT -= 1;
     }

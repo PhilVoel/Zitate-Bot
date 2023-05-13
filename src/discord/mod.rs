@@ -6,14 +6,14 @@ use serenity::{
 use std::{env, sync::{mpsc::Sender, Arc, Mutex}};
 use crate::{logging::log, event_handler::Handler};
 
-pub async fn delete_qa_thread(msg_id: u64, ctx: &Context, config: &pml::PmlStruct) {
+pub async fn delete_qa_thread(msg_id: String, ctx: &Context, config: &pml::PmlStruct) {
     let channel = GuildId(*config.get("guildId"))
             .get_active_threads(&ctx.http)
             .await
             .unwrap()
             .threads
             .iter()
-            .find(|thread| thread.name() == msg_id.to_string())
+            .find(|thread| thread.name() == msg_id)
             .unwrap()
             .id;
     let channel_id = *channel.as_u64();

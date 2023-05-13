@@ -123,7 +123,6 @@ impl EventHandler for Handler {
                 Channel::Guild(channel) => channel,
                 _ => return,
             };
-            let zitat_id = channel.name.parse::<u64>().unwrap();
             let bot_channel_id = *self.config.get::<u64>("channelBot");
             let response_text: String = match command.data.name.as_str() {
                 "stats" if channel_id == bot_channel_id => {
@@ -169,6 +168,27 @@ impl EventHandler for Handler {
                     get_ranking(r#type).await
                 }
                 "gesagt" if parent_id == bot_channel_id => {
+                    let zitat_id = channel.name.parse::<u64>().unwrap();
+                    let input = command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap();
+                    let len = input.len()-1;
+                    match
+                        match input[2..len].parse::<u64>() {
+                            Ok(id) => user::get(&id).await,
+                            Err(_) => user::get(&input.to_string()).await,
+                        }
+                    {
+                        Ok(option) => match option {
+                            Some(user) => add_qa(QAType::Said, user, zitat_id).await,
+                            None => "User not found".to_string(),
+                        },
+                        Err(e) => {
+                            log(&format!("Error getting user from DB: {e}"), "ERR ");
+                            String::from("Error looking up user in DB")
+                        }
+                    }
+                }
+                "assistiert" if parent_id == bot_channel_id => {
+                    let zitat_id = channel.name.parse::<u64>().unwrap();
                     let input = command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap();
                     let len = input.len()-1;
                     match
@@ -188,6 +208,7 @@ impl EventHandler for Handler {
                     }
                 }
                 "fertig" if parent_id == bot_channel_id => {
+                    let zitat_id = channel.name.parse::<u64>().unwrap();
                     if DB
                         .query(format!(
                             "SELECT * FROM 0 < (SELECT count(<-said) FROM zitat:{zitat_id}).count"
@@ -198,7 +219,11 @@ impl EventHandler for Handler {
                         .unwrap()
                         .unwrap()
                     {
-                        delete_qa_thread(*command.channel_id.as_u64(), &ctx, &self.config).await;
+                        let thread_name = match command.channel_id.to_channel(&ctx).await.unwrap() {
+                            Channel::Guild(channel) => channel.name,
+                            _ => return,
+                        };
+                        delete_qa_thread(thread_name, &ctx, &self.config).await;
                         return;
                     } else {
                         String::from("Nein, bist du nicht")
