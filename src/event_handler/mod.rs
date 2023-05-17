@@ -24,10 +24,6 @@ pub struct Handler {
 }
 
 /*trait ApplicationCommandInteractionExt {
-    async fn reply(&self, ctx: &Context, content: &str);
-}
-
-impl ApplicationCommandInteractionExt for ApplicationCommandInteraction {
     async fn reply(&self, ctx: &Context, content: &str) {
             self
                 .create_interaction_response(ctx.http, |response| {
@@ -36,6 +32,9 @@ impl ApplicationCommandInteractionExt for ApplicationCommandInteraction {
                 .await
                 .unwrap();
     }
+}
+
+impl ApplicationCommandInteractionExt for ApplicationCommandInteraction {
 }*/
 
 #[async_trait]
