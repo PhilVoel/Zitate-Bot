@@ -14,6 +14,13 @@ struct RankingResult {
     pub count: u16,
 }
 
+#[derive(Deserialize)]
+struct ZitatDeleteInfo {
+    pub content: String,
+    pub author_name: String,
+    pub timestamp: String
+}
+
 pub static DB: Surreal<SurrealClient> = Surreal::init();
 
 pub async fn add_qa(r#type: QAType, user: User, id: u64) -> String {
@@ -119,4 +126,14 @@ pub async fn insert_zitat(zitat_msg: &Message) {
         .bind(("time", zitat_msg.timestamp))
         .await.unwrap();
     log(&format!("Zitat with ID {msg_id} successfully inserted into DB"), "INFO");
+}
+
+pub async fn delete_zitat(id: u64) {
+    let old_msg: Option<ZitatDeleteInfo> = DB.query(format!("SELECT text as content, time as timestamp, <-said.in.name as author_name FROM zitat:{id}")).await.unwrap().take(0).unwrap();
+    let old_msg = old_msg.unwrap();
+    log(&format!("Content: {}", old_msg.content), "INFO");
+    log(&format!("Author:  {}", old_msg.author_name), "INFO");
+    log(&format!("Date:    {}", old_msg.timestamp), "INFO");
+    DB.query(format!("DELETE zitat:{id}")).await.unwrap();
+    log("Deleted from DB", "INFO");
 }

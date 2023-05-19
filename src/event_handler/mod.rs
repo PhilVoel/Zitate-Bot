@@ -68,10 +68,9 @@ impl EventHandler for Handler {
         msg_id: MessageId,
         _: Option<GuildId>,
     ) {
-        let channel_id = channel_id.0;
         let config = &self.config;
-        if channel_id == *config.get::<u64>("channelZitate") {
-            remove_zitat(msg_id.0, channel_id, &ctx, config).await;
+        if channel_id.0 == *config.get::<u64>("channelZitate") {
+            remove_zitat(msg_id.0, &ctx, config).await;
         }
     }
 
