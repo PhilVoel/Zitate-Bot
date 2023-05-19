@@ -1,8 +1,5 @@
 use serenity::{
-    model::{
-        channel::Message,
-        id::{ChannelId, MessageId},
-    },
+    model::channel::Message,
     prelude::*,
 };
 use std::{
@@ -93,8 +90,8 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
             }
             Some(s) if s == "remove" => {
                 remove_zitat(
-                    MessageId(result.get(2).unwrap().parse::<u64>().unwrap()),
-                    ChannelId(*config.get("channelZitate")),
+                    result.get(2).unwrap().parse::<u64>().unwrap(),
+                    *config.get("channelZitate"),
                     ctx,
                     config,
                 )
@@ -157,17 +154,14 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
 }
 
 async fn remove_zitat(
-    msg_id: MessageId,
-    channel_id: ChannelId,
+    msg_id: u64,
+    channel_id: u64,
     ctx: &Context,
     config: &pml::PmlStruct,
 ) {
-    log(
-        &format!("Deleting Zitat with ID {}", msg_id.as_u64()),
-        "WARN",
-    );
-    DB.query(format!("BEGIN TRANSACTION; DELETE zitat:{}; DELETE wrote, said, assisted WHERE out=zitat:{}; COMMIT TRANSACTION", msg_id, msg_id)).await.unwrap();
-    if let Some(old_msg) = fetch_message_from_id(*msg_id.as_u64(), *channel_id.as_u64(), ctx).await
+    log(&format!("Deleting Zitat with ID {msg_id}"), "WARN");
+    DB.query(format!("DELETE zitat:{msg_id}")).await.unwrap();
+    if let Some(old_msg) = fetch_message_from_id(msg_id, channel_id, ctx).await
     {
         log(&format!("Content: {}", old_msg.content), "INFO");
         log(&format!("Author:  {}", old_msg.author.name), "INFO");
@@ -176,7 +170,7 @@ async fn remove_zitat(
         log("Message not found in cache", "WARN");
     }
     log("Deleted from DB", "INFO");
-    delete_qa_thread(msg_id.0.to_string(), ctx, config).await;
+    delete_qa_thread(msg_id.to_string(), ctx, config).await;
     unsafe {
         OVERALL_ZITATE_COUNT -= 1;
     }
