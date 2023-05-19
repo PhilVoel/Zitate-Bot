@@ -28,14 +28,14 @@ pub async fn add_qa(r#type: QAType, user: User, id: u64) -> String {
     let already_said: Option<bool> = DB
         .query(format!("SELECT * FROM zitat:{id} IN (SELECT ->said.out as res FROM {user_id})"))
         .await
-        .unwrap()
+        .expect("Seems the DB went down")
         .take(0)
         .unwrap();
     let already_said = already_said.unwrap();
     let already_assisted: Option<bool> = DB
         .query(format!("SELECT * FROM zitat:{id} IN (SELECT ->assisted.out as res FROM {user_id})"))
         .await
-        .unwrap()
+        .expect("Seems the DB went down")
         .take(0)
         .unwrap();
     let already_assisted = already_assisted.unwrap();
@@ -54,7 +54,7 @@ pub async fn add_qa(r#type: QAType, user: User, id: u64) -> String {
     };
     DB.query(format!("RELATE {user_id}->{table_name}->zitat:{id}"))
         .await
-        .unwrap();
+        .expect("Seems the DB went down");
     let user_name = user.name;
     log(&format!("Added {user_name} to {table_name} of Zitat with ID {id} in DB"), "INFO");
     format!("{user_name} erfolgreich hinzugefügt.")
@@ -66,7 +66,7 @@ pub async fn get_ranking(r#type: RankingType) -> String {
         RankingType::Wrote => ("geschriebene", "wrote"),
         RankingType::Assisted => ("assistierte", "assisted"),
     };
-    let ranking: Vec<RankingResult>  = DB.query("SELECT count(), in.name as name FROM type::table($kategorie) GROUP BY name ORDER BY count DESC").bind(("kategorie", type_db)).await.unwrap().take(0).unwrap();
+    let ranking: Vec<RankingResult>  = DB.query("SELECT count(), in.name as name FROM type::table($kategorie) GROUP BY name ORDER BY count DESC").bind(("kategorie", type_db)).await.expect("Seems the DB went down").take(0).unwrap();
     format!(
         "Ranking {type_de} Zitate:\n{}",
         ranking
@@ -85,7 +85,7 @@ pub async fn get_ranking(r#type: RankingType) -> String {
 }
 
 pub async fn init(config: &PmlStruct) {
-    DB.connect::<Ws>(config.get::<String>("dbUrl").as_str()).await.unwrap();
+    DB.connect::<Ws>(config.get::<String>("dbUrl").as_str()).await.expect("Error connecting to DB");
     DB.signin(Database {
         namespace: config.get::<String>("dbNs"),
         database: config.get::<String>("dbName"),
@@ -93,7 +93,7 @@ pub async fn init(config: &PmlStruct) {
         password: config.get::<String>("dbPass"),
     })
     .await
-    .unwrap();
+    .expect("Error logging into DB");
 }
 
 
@@ -112,19 +112,19 @@ pub async fn insert_zitat(zitat_msg: &Message) {
         Ok(Some(user_data)) => user_data,
         Ok(None) => {
             log("Author not found in DB", "WARN");
-            user::add(&author_id, &zitat_msg.author.name).await;
+            user::add(author_id, &zitat_msg.author.name).await;
             User::new(author_id, zitat_msg.author.name.clone()) 
         }
         Err(e) => {
             log(&format!("Error while getting user from db: {e}"), "ERR ");
-            user::add(&author_id, &zitat_msg.author.name).await;
+            user::add(author_id, &zitat_msg.author.name).await;
             User::new(author_id, zitat_msg.author.name.clone()) 
         }
     };
     DB.query(format!("CREATE zitat:{msg_id} SET text=type::string($text); RELATE {}->wrote->zitat:{msg_id} SET time=type::datetime($time)", author.id))
         .bind(("text", &zitat_msg.content))
         .bind(("time", zitat_msg.timestamp))
-        .await.unwrap();
+        .await.expect("Seems the DB went down");
     log(&format!("Zitat with ID {msg_id} successfully inserted into DB"), "INFO");
 }
 
@@ -134,6 +134,6 @@ pub async fn delete_zitat(id: u64) {
     log(&format!("Content: {}", old_msg.content), "INFO");
     log(&format!("Author:  {}", old_msg.author_name), "INFO");
     log(&format!("Date:    {}", old_msg.timestamp), "INFO");
-    DB.query(format!("DELETE zitat:{id}")).await.unwrap();
+    DB.query(format!("DELETE zitat:{id}")).await.expect("Seems the DB went down");
     log("Deleted from DB", "INFO");
 }

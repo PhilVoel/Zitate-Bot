@@ -21,8 +21,8 @@ pub fn log_to_file(print_string: String) {
         .create(true)
         .append(true)
         .open(get_log_file_path())
-        .unwrap();
-    file.write_all(print_string.as_bytes()).unwrap();
+        .expect("Error opening log file");
+    file.write_all(print_string.as_bytes()).expect("Error writing to log file");
 }
 
 pub fn get_date_string() -> String {
@@ -31,5 +31,5 @@ pub fn get_date_string() -> String {
 }
 
 pub fn delete() {
-    fs::remove_file(get_log_file_path()).unwrap();
+    fs::remove_file(get_log_file_path()).expect("Error deleting log file");
 }

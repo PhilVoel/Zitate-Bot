@@ -64,12 +64,12 @@ pub async fn get<'a, T>(user: T) -> surrealdb::Result<Option<User>>
         }
 }
 
-pub async fn add(id: &u64, name: &str) {
+pub async fn add(id: u64, name: &str) {
     DB.query("CREATE type::thing('user', $id) SET name=$name, uids=[$id]")
         .bind(("name", name))
         .bind(("id", id))
         .await
-        .unwrap();
+        .expect("Seems the DB went down");
     log(&format!("Added {name} to DB"), "INFO");
 }
 
@@ -78,19 +78,19 @@ pub async fn get_stats(user: User) -> String {
     let said: Option<i32> = DB
         .query(format!("SELECT count(->said) FROM {user_id}"))
         .await
-        .unwrap()
+        .expect("Seems the DB went down")
         .take((0, "count"))
         .unwrap();
     let wrote: Option<i32> = DB
         .query(format!("SELECT count(->wrote) FROM {user_id}"))
         .await
-        .unwrap()
+        .expect("Seems the DB went down")
         .take((0, "count"))
         .unwrap();
     let assisted: Option<i32> = DB
         .query(format!("SELECT count(->assisted) FROM {user_id}"))
         .await
-        .unwrap()
+        .expect("Seems the DB went down")
         .take((0, "count"))
         .unwrap();
     let said: u16 = match said {

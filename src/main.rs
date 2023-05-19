@@ -54,7 +54,7 @@ async fn main() {
         let overall_num_zitate: Option<u16> = DB
             .query("SELECT count() FROM zitat GROUP BY count")
             .await
-            .unwrap()
+            .expect("Seems the DB went down")
             .take((0, "count"))
             .unwrap();
         OVERALL_ZITATE_COUNT = match overall_num_zitate {
@@ -74,48 +74,72 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
     let result: Vec<String> = input.split(" ").map(|s| s.to_string()).collect();
     match result.get(0) {
         Some(s) if s == "zitat" => match result.get(1) {
-            Some(s) if s == "add" => {
-                register_zitat(
-                    fetch_message_from_id(
-                        result.get(2).unwrap().parse::<u64>().unwrap(),
-                        *config.get("channelZitate"),
-                        ctx,
-                    )
-                    .await
-                    .unwrap(),
-                    config,
-                    ctx,
-                )
-                .await
-            }
-            Some(s) if s == "remove" => {
-                remove_zitat(
-                    result.get(2).unwrap().parse::<u64>().unwrap(),
-                    ctx,
-                    config,
-                )
-                .await
-            }
+            Some(s) if s == "add" => register_zitat({
+                fetch_message_from_id(match result.get(2) {
+                    Some(s) => match s.parse::<u64>() {
+                        Ok(id) => id,
+                        Err(_) => {
+                            println!("Invalid message ID");
+                            return;
+                        }
+                    },
+                    None => {
+                        println!("Missing message ID");
+                        return;
+                    }
+                }, *config.get("channelZitate"), ctx,).await.unwrap()
+            }, config, ctx).await,
+            Some(s) if s == "remove" => remove_zitat(
+                match result.get(2) {
+                    Some(s) => match s.parse::<u64>() {
+                        Ok(id) => id,
+                        Err(_) => {
+                            println!("Invalid message ID");
+                            return;
+                        }
+                    },
+                    None => {
+                        println!("Missing message ID");
+                        return;
+                    }
+                }, ctx, config).await,
             Some(_) => println!("Unknown subcommand"),
             None => println!("Missing subcommand"),
         },
         Some(s) if s == "user" => match result.get(1) {
-            Some(s) if s == "add" => {
-                user::add(
-                    &result.get(3).unwrap().parse::<u64>().unwrap(),
-                    result.get(2).unwrap(),
-                )
-                .await;
-            }
-            Some(s) if s == "stats" => {
-                match user::get(result.get(2).unwrap())
-                    .await
-                    .unwrap()
-                {
-                    Some(user) => println!("{}", user::get_stats(user).await),
-                    None => println!("User not found"),
+            Some(s) if s == "add" => user::add(
+                match result.get(3) {
+                    Some(s) => match s.parse::<u64>() {
+                        Ok(id) => id,
+                        Err(_) => {
+                            println!("Invalid user ID");
+                            return;
+                        }
+                    },
+                    None => {
+                        println!("Missing user ID");
+                        return;
+                    }
+                },
+                match result.get(2) {
+                    Some(s) => s,
+                    None => {
+                        println!("Missing user name");
+                        return;
+                    }
+                }).await,
+            Some(s) if s == "stats" => match user::get(
+                match result.get(2) {
+                    Some(s) => s,
+                    None => {
+                        println!("Missing user name");
+                        return;
+                    }
                 }
-            }
+                ).await.unwrap() {
+                Some(user) => println!("{}", user::get_stats(user).await),
+                None => println!("User not found"),
+            },
             Some(s) if s == "ranking" => {
                 let r#type = match result.get(2) {
                     Some(s) if s == "said" => RankingType::Said,
@@ -139,12 +163,12 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
             ctx.shard.shutdown_clean();
             if env::args()
                 .collect::<Vec<String>>()
-                .contains(&String::from("test"))
-            {
-                logging::delete();
-            } else {
-                log("Exiting...", "INFO");
-            }
+                    .contains(&String::from("test"))
+                    {
+                        logging::delete();
+                    } else {
+                        log("Exiting...", "INFO");
+                    }
             std::process::exit(0);
         }
         Some(_) => println!("Unknown command"),

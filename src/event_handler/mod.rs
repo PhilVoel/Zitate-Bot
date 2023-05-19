@@ -88,7 +88,7 @@ impl EventHandler for Handler {
         let old_text: Option<String> = DB
             .query(format!("SELECT text FROM zitat:{zitat_id}"))
             .await
-            .unwrap()
+            .expect("Seems the DB went down")
             .take((0, "text"))
             .unwrap();
         if old_text == event.content {
@@ -107,7 +107,7 @@ impl EventHandler for Handler {
         ))
         .bind(("text", new_text))
         .await
-        .unwrap();
+        .expect("Seems the DB went down");
         log("Zitat successfully updated", "INFO");
     }
 
@@ -139,7 +139,7 @@ impl EventHandler for Handler {
                     match user {
                         Ok(option) => match option {
                             Some(user) => user::get_stats(user).await,
-                            None => "User not found".to_string(),
+                            None => String::from("User not found"),
                         },
                         Err(e) => {
                             log(&format!("Error getting user from DB: {e}"), "ERR ");
@@ -178,7 +178,7 @@ impl EventHandler for Handler {
                     {
                         Ok(option) => match option {
                             Some(user) => add_qa(QAType::Said, user, zitat_id).await,
-                            None => "User not found".to_string(),
+                            None => String::from("User not found"),
                         },
                         Err(e) => {
                             log(&format!("Error getting user from DB: {e}"), "ERR ");
@@ -198,7 +198,7 @@ impl EventHandler for Handler {
                     {
                         Ok(option) => match option {
                             Some(user) => add_qa(QAType::Assisted, user, zitat_id).await,
-                            None => "User not found".to_string(),
+                            None => String::from("User not found"),
                         },
                         Err(e) => {
                             log(&format!("Error getting user from DB: {e}"), "ERR ");
@@ -213,7 +213,7 @@ impl EventHandler for Handler {
                             "SELECT * FROM 0 < (SELECT count(<-said) FROM zitat:{zitat_id}).count"
                         ))
                         .await
-                        .unwrap()
+                        .expect("Seems the DB went down")
                         .take::<Option<bool>>(0)
                         .unwrap()
                         .unwrap()
