@@ -30,29 +30,29 @@ mod id {
 use id::Identifier;
 
 async fn get_by_uid(id: &u64) -> surrealdb::Result<Option<User>> {
-    Ok(DB
+    DB
         .query("SELECT name, uids, type::string(id) as id FROM user WHERE $id IN uids")
         .bind(("id", id))
         .await?
-        .take(0)?)
+        .take(0)
 }
 
 async fn get_by_name(name: &str) -> surrealdb::Result<Option<User>> {
-    Ok(DB
+    DB
         .query("SELECT name, uids, type::string(id) as id FROM user WHERE name = $name")
         .bind(("name", name))
         .await?
-        .take(0)?)
+        .take(0)
 }
 
-impl<'a> Into<Identifier<'a>> for &'a u64 {
-    fn into(self) -> Identifier<'a> {
-        Identifier::Id(self)
+impl<'a> From<&'a u64> for Identifier<'a> {
+    fn from(val: &'a u64) -> Self {
+        Identifier::Id(val)
     }
 }
-impl<'a> Into<Identifier<'a>> for &'a String {
-    fn into(self) -> Identifier<'a> {
-        Identifier::Name(self)
+impl<'a> From<&'a String> for Identifier<'a> {
+    fn from(val: &'a String) -> Self {
+        Identifier::Name(val)
     }
 }
 

@@ -1,7 +1,12 @@
 mod create_commands;
 use crate::{
-    add_qa, delete_qa_thread, get_ranking, user, send_dm,
-    logging::log, register_zitat, remove_zitat, QAType, RankingType, DB, set_status_based_on_start_parameter
+    db::{add_qa, get_ranking, user, DB},
+    discord::{send_dm, delete_qa_thread, set_status_based_on_start_parameter},
+    logging::log,
+    register_zitat,
+    remove_zitat,
+    QAType,
+    RankingType
 };
 use std::sync::{mpsc, Arc, Mutex};
 
@@ -15,7 +20,7 @@ use serenity::{
         id::{ChannelId, GuildId, MessageId, UserId as SerenityUserId},
         prelude::{MessageType, MessageUpdateEvent},
     },
-    prelude::*,
+    prelude::{Context, EventHandler}
 };
 
 pub struct Handler {
@@ -246,7 +251,7 @@ async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
         return;
     }
     let author = match user::get(&author_id).await {
-        Ok(Some(user_data)) => format!("{}", user_data.name),
+        Ok(Some(user_data)) => user_data.name.to_string(),
         Ok(None) => format!("{} (ID: {author_id})", msg.author.tag()),
         Err(e) => {
             log(&format!("Error while getting user from db: {e}"), "ERR ");

@@ -1,6 +1,6 @@
 use serenity::{
     model::channel::Message,
-    prelude::*,
+    prelude::Context,
 };
 use std::{
     env,
@@ -13,9 +13,9 @@ mod event_handler;
 mod logging;
 use logging::{log, log_to_file, START_TIME, get_date_string};
 mod db;
-use db::*;
+use db::{DB, user, get_ranking};
 mod discord;
-use discord::*;
+use discord::fetch_message_from_id;
 
 pub enum RankingType {
     Said,
@@ -57,10 +57,7 @@ async fn main() {
             .expect("Seems the DB went down")
             .take((0, "count"))
             .unwrap();
-        OVERALL_ZITATE_COUNT = match overall_num_zitate {
-            Some(num) => num,
-            None => 0,
-        };
+        OVERALL_ZITATE_COUNT = overall_num_zitate.unwrap_or(0);
     }
     let mut client = discord::init_client(config, ctx_producer).await;
     if let Err(why) = client.start().await {
@@ -71,7 +68,7 @@ async fn main() {
 async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlStruct) {
     let input = input.trim();
     log_to_file(format!("[{}] > {input}", get_date_string()));
-    let result: Vec<String> = input.split(" ").map(|s| s.to_string()).collect();
+    let result: Vec<String> = input.split(' ').map(|s| s.to_string()).collect();
     match result.get(0) {
         Some(s) if s == "zitat" => match result.get(1) {
             Some(s) if s == "add" => register_zitat({

@@ -1,7 +1,7 @@
 use pml::PmlStruct;
 use serenity::{
     model::{id::ChannelId, prelude::{Activity, Message, ChannelType, GuildId}, channel::Channel::Guild as GuildChannel},
-    prelude::*,
+    prelude::{Context, Client, GatewayIntents},
 };
 use std::{env, sync::{mpsc::Sender, Arc, Mutex}};
 use crate::{logging::log, event_handler::Handler};
@@ -61,7 +61,7 @@ pub async fn init_client(config: PmlStruct, ctx_producer: Arc<Mutex<Sender<Conte
         | GatewayIntents::MESSAGE_CONTENT
         | GatewayIntents::DIRECT_MESSAGES;
     let bot_token = config.get::<String>("botToken");
-    Client::builder(&bot_token, intents)
+    Client::builder(bot_token, intents)
         .event_handler(Handler {
             config,
             ctx_producer,
