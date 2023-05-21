@@ -94,6 +94,7 @@ pub async fn init(config: &PmlStruct) {
     })
     .await
     .expect("Error logging into DB");
+    log("Connected to database", "INFO");
 }
 
 
