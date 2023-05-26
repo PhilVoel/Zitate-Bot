@@ -6,12 +6,11 @@ use std::{
     env,
     io,
     sync::{mpsc, Arc, Mutex},
-    time::{SystemTime, UNIX_EPOCH},
 };
 
 mod event_handler;
 mod logging;
-use logging::{log, log_to_file, START_TIME, get_date_string};
+use logging::{log, log_to_file, get_date_string};
 mod db;
 use db::{DB, user, get_ranking};
 mod discord;
@@ -47,10 +46,6 @@ async fn main() {
     let config = pml::parse_file("config");
     db::init(&config).await;
     unsafe {
-        START_TIME = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis();
         let overall_num_zitate: Option<u16> = DB
             .query("SELECT count() FROM zitat GROUP BY count")
             .await

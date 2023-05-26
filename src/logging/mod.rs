@@ -1,6 +1,13 @@
-use std::{fs::{OpenOptions, self}, io::Write};
+use std::{fs::{OpenOptions, self}, io::Write, time::{SystemTime, UNIX_EPOCH}};
 use chrono::Local;
-pub static mut START_TIME: u128 = 0;
+use lazy_static::lazy_static;
+
+lazy_static! {
+    static ref START_TIME: u128 = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis();
+}
 
 pub fn log(message: &str, log_level: &str) {
     let print_string = format!("[{}] [{log_level}] {message}", get_date_string());
@@ -9,11 +16,7 @@ pub fn log(message: &str, log_level: &str) {
 }
 
 fn get_log_file_path() -> String {
-    let file_path;
-    unsafe {
-        file_path = format!("logs/{START_TIME}.log");
-    }
-    file_path
+    format!("logs/{}.log", *START_TIME)
 }
 
 pub fn log_to_file(print_string: String) {

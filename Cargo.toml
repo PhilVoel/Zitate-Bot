@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 chrono = "0.4.24"
+lazy_static = "1.4.0"
 pml = "0.3.0"
 serde = "1.0.160"
 serenity = {version = "0.11.5", default-features = false, features = ["client", "gateway", "rustls_backend", "model", "cache"]}
