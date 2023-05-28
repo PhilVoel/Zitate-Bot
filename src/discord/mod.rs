@@ -23,7 +23,7 @@ pub async fn delete_qa_thread(msg_id: String, ctx: &Context, config: &pml::PmlSt
         .await
         .unwrap();
     log(
-        &format!("Deleted Thread for Zitat with ID {channel_id}"),
+        &format!("Deleted Thread for Zitat with ID {msg_id}"),
         "INFO",
     );
 }
