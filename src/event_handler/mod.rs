@@ -134,9 +134,11 @@ impl EventHandler for Handler {
                         Some(input) => {
                             let input = input.value.as_ref().unwrap().as_str().unwrap();
                             let len = input.len()-1;
-                            match input[2..len].parse::<u64>() {
-                                Ok(id) => user::get(&id).await,
-                                Err(_) => user::get(&input.to_string()).await,
+                            if input.starts_with("<@") && input.ends_with('>') {
+                                let id = input[2..len].parse::<u64>().unwrap();
+                                user::get(&id).await
+                            } else {
+                                user::get(&input.to_string()).await
                             }
                         }
                         None => user::get(&command.user.id.0).await
@@ -176,9 +178,11 @@ impl EventHandler for Handler {
                     let input = command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap();
                     let len = input.len()-1;
                     match
-                        match input[2..len].parse::<u64>() {
-                            Ok(id) => user::get(&id).await,
-                            Err(_) => user::get(&input.to_string()).await,
+                        if input.starts_with("<@") && input.ends_with('>') {
+                            let id = input[2..len].parse::<u64>().unwrap();
+                            user::get(&id).await
+                        } else {
+                            user::get(&input.to_string()).await
                         }
                     {
                         Ok(option) => match option {
@@ -196,9 +200,11 @@ impl EventHandler for Handler {
                     let input = command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap();
                     let len = input.len()-1;
                     match
-                        match input[2..len].parse::<u64>() {
-                            Ok(id) => user::get(&id).await,
-                            Err(_) => user::get(&input.to_string()).await,
+                        if input.starts_with("<@") && input.ends_with('>') {
+                            let id = input[2..len].parse::<u64>().unwrap();
+                            user::get(&id).await
+                        } else {
+                            user::get(&input.to_string()).await
                         }
                     {
                         Ok(option) => match option {
