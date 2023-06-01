@@ -93,18 +93,9 @@ pub async fn get_stats(user: User) -> String {
         .expect("Seems the DB went down")
         .take((0, "count"))
         .unwrap();
-    let said: u16 = match said {
-        Some(s) => s as u16,
-        None => 0,
-    };
-    let wrote: u16 = match wrote {
-        Some(s) => s as u16,
-        None => 0,
-    };
-    let assisted: u16 = match assisted {
-        Some(s) => s as u16,
-        None => 0,
-    };
+    let said: u16 = said.unwrap_or(0) as u16; 
+    let wrote: u16 = wrote.unwrap_or(0) as u16;
+    let assisted: u16 = assisted.unwrap_or(0) as u16;
     format!(
         "Stats für {}:\nGesagt: {said} ({}%)\nGeschrieben: {wrote} ({}%)\nAssisted: {assisted} ({}%)",
         user.name,
