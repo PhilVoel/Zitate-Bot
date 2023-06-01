@@ -6,6 +6,7 @@ use std::{
     env,
     io,
     sync::{mpsc, Arc, Mutex},
+    fs,
 };
 
 mod event_handler;
@@ -43,6 +44,7 @@ async fn main() {
             console_input_handler(input, &ctx, &config).await;
         }
     });
+    fs::create_dir_all("logs").expect("Could not create logs directory");
     let config = pml::parse::file("config.pml").expect("Error parsing config file");
     db::init(&config).await;
     unsafe {

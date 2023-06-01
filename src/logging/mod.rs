@@ -9,6 +9,7 @@ lazy_static! {
         .as_millis();
 }
 
+
 pub fn log(message: &str, log_level: &str) {
     let print_string = format!("[{}] [{log_level}] {message}", get_date_string());
     println!("{print_string}");
