@@ -119,5 +119,5 @@ pub async fn get_zitate(user: User) -> String {
         .expect("Seems the DB went down")
         .take(0)
         .unwrap();
-    format!("{}", zitate.iter().map(|e| format!("{}\nhttps://discord.com/channels/422796692899758091/528316171389239296/{}", e.text, e.msg_id)).collect::<Vec<String>>().join("\n------------------\n"))
+    format!("Zitate von {}:\n\n{}", user.name, zitate.iter().map(|e| format!("{}\nhttps://discord.com/channels/422796692899758091/528316171389239296/{}", e.text, e.msg_id)).collect::<Vec<String>>().join("\n------------------\n"))
 }
