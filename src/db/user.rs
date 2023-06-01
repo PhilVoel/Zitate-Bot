@@ -11,6 +11,12 @@ pub struct User {
     uids: Vec<u64>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct ZitateListItem {
+    msg_id: String,
+    text: String,
+}
+
 impl User {
     pub fn new(id: u64, name: String) -> Self {
         Self {
@@ -103,4 +109,15 @@ pub async fn get_stats(user: User) -> String {
         get_percentage(&wrote),
         get_percentage(&assisted)
     )
+}
+
+pub async fn get_zitate(user: User) -> String {
+    let user_id = user.id;
+    let zitate: Vec<ZitateListItem> = DB
+        .query(format!("SELECT out.text AS text, string::slice(out, 6) AS msg_id FROM {user_id}->said ORDER BY msg_id"))
+        .await
+        .expect("Seems the DB went down")
+        .take(0)
+        .unwrap();
+    format!("{}", zitate.iter().map(|e| format!("{}\nhttps://discord.com/channels/422796692899758091/528316171389239296/{}", e.text, e.msg_id)).collect::<Vec<String>>().join("\n------------------\n"))
 }

@@ -7,6 +7,7 @@ pub fn create_all(commands: &mut CreateApplicationCommands) -> &mut CreateApplic
     commands
         .create_application_command(|command| stats(command))
         .create_application_command(|command| ranking(command))
+        .create_application_command(|command| zitate(command))
         .create_application_command(|command| gesagt(command))
         .create_application_command(|command| assistiert(command))
         .create_application_command(|command| fertig(command))
@@ -36,6 +37,18 @@ fn ranking(command: &mut CreateApplicationCommand) -> &mut CreateApplicationComm
                        .add_string_choice("gesagt", "said")
                        .add_string_choice("geschrieben", "wrote")
                        .add_string_choice("assistiert", "assisted"))
+}
+
+fn zitate(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {
+    command
+        .name("zitate")
+        .description("Zeigt alle Zitate des Nutzers an")
+        .create_option(|option| {
+            option
+                .name("name")
+                .description("Der, von dem du die Zitate willst")
+                .kind(CommandOptionType::String)
+        })
 }
 
 fn gesagt(command: &mut CreateApplicationCommand) -> &mut CreateApplicationCommand {

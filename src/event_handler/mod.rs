@@ -173,6 +173,31 @@ impl EventHandler for Handler {
                     };
                     get_ranking(r#type).await
                 }
+                "zitate" if channel_id == bot_channel_id => {
+                    let user = match command.data.options.get(0) {
+                        Some(input) => {
+                            let input = input.value.as_ref().unwrap().as_str().unwrap();
+                            let len = input.len()-1;
+                            if input.starts_with("<@") && input.ends_with('>') {
+                                let id = input[2..len].parse::<u64>().unwrap();
+                                user::get(&id).await
+                            } else {
+                                user::get(&input.to_string()).await
+                            }
+                        }
+                        None => user::get(&command.user.id.0).await
+                    };
+                    match user {
+                        Ok(option) => match option {
+                            Some(user) => user::get_zitate(user).await,
+                            None => String::from("User not found"),
+                        },
+                        Err(e) => {
+                            log(&format!("Error getting user from DB: {e}"), "ERR ");
+                            String::from("Error looking up user in DB")
+                        }
+                    }
+                }
                 "gesagt" if parent_id == bot_channel_id => {
                     let zitat_id = channel.name.parse::<u64>().unwrap();
                     let input = command.data.options.get(0).unwrap().value.as_ref().unwrap().as_str().unwrap();
