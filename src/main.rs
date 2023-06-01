@@ -35,7 +35,7 @@ async fn main() {
     let (ctx_producer, ctx_receiver) = mpsc::channel();
     let ctx_producer = Arc::new(Mutex::new(ctx_producer));
     tokio::spawn(async move {
-        let config = pml::parse::file("config.pml").expect("Config file not found");
+        let config = pml::parse::file("config.pml").expect("Error parsing config file");
         let ctx = ctx_receiver.recv().unwrap();
         loop {
             let mut input = String::new();
@@ -43,7 +43,7 @@ async fn main() {
             console_input_handler(input, &ctx, &config).await;
         }
     });
-    let config = pml::parse::file("config.pml").expect("Config file not found");
+    let config = pml::parse::file("config.pml").expect("Error parsing config file");
     db::init(&config).await;
     unsafe {
         let overall_num_zitate: Option<u16> = DB
