@@ -47,7 +47,7 @@ impl EventHandler for Handler {
     async fn ready(&self, ctx: Context, _: Ready) {
         log("Logged in", "INFO");
         set_status_based_on_start_parameter(&ctx).await;
-        GuildId(*self.config.get("guildId"))
+        GuildId(self.config.get("guildId").expect("guildId value not found in config file"))
             .set_application_commands(&ctx.http, |commands| create_commands::create_all(commands))
             .await
             .unwrap();
@@ -56,7 +56,7 @@ impl EventHandler for Handler {
 
     async fn message(&self, ctx: Context, msg: Message) {
         let config = &self.config;
-        let zitate_channel_id = *config.get::<u64>("channelZitate");
+        let zitate_channel_id = config.get::<u64>("channelZitate").expect("channelZitate value not found in config file");
         if msg.author.bot || msg.kind != MessageType::Regular {
             return;
         } else if *msg.channel_id.as_u64() == zitate_channel_id {
@@ -74,7 +74,7 @@ impl EventHandler for Handler {
         _: Option<GuildId>,
     ) {
         let config = &self.config;
-        if channel_id.0 == *config.get::<u64>("channelZitate") {
+        if channel_id.0 == config.get::<u64>("channelZitate").expect("channelZitate value not found in config file") {
             remove_zitat(msg_id.0, &ctx, config).await;
         }
     }
@@ -86,7 +86,7 @@ impl EventHandler for Handler {
         _: Option<Message>,
         event: MessageUpdateEvent,
     ) {
-        if *event.channel_id.as_u64() != *self.config.get::<u64>("channelZitate") {
+        if *event.channel_id.as_u64() != self.config.get::<u64>("channelZitate").expect("channelZitate value not found in config file") {
             return;
         }
         let zitat_id = event.id.0;
@@ -127,7 +127,7 @@ impl EventHandler for Handler {
                 Channel::Guild(channel) => channel,
                 _ => return,
             };
-            let bot_channel_id = *self.config.get::<u64>("channelBot");
+            let bot_channel_id = self.config.get::<u64>("channelBot").expect("channelBot value not found in config file");
             let response_text: String = match command.data.name.as_str() {
                 "stats" if channel_id == bot_channel_id => {
                     let user = match command.data.options.get(0) {
@@ -278,7 +278,8 @@ impl EventHandler for Handler {
 
 async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     let SerenityUserId(author_id) = msg.author.id;
-    if author_id == *config.get::<u64>("ownerId") {
+    let owner_id = config.get("ownerId").expect("ownerId value not found in config file");
+    if author_id == owner_id {
         return;
     }
     let author = match user::get(&author_id).await {
@@ -291,7 +292,7 @@ async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     };
     log(&format!("Received DM from {author}"), "INFO");
     send_dm(
-        config.get("ownerId"),
+        owner_id,
         format!("DM von {author}:\n{}", msg.content),
         ctx,
     )

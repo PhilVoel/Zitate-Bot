@@ -7,7 +7,7 @@ use std::{env, sync::{mpsc::Sender, Arc, Mutex}};
 use crate::{logging::log, event_handler::Handler};
 
 pub async fn delete_qa_thread(msg_id: String, ctx: &Context, config: &pml::PmlStruct) {
-    let channel = GuildId(*config.get("guildId"))
+    let channel = GuildId(config.get("guildId").expect("guildId value not found in config file"))
             .get_active_threads(&ctx.http)
             .await
             .unwrap()
@@ -19,7 +19,7 @@ pub async fn delete_qa_thread(msg_id: String, ctx: &Context, config: &pml::PmlSt
     let channel_id = *channel.as_u64();
     ctx.http.delete_channel(channel_id).await.unwrap();
     ctx.http
-        .delete_message(*config.get("channelBot"), channel_id)
+        .delete_message(config.get("channelBot").expect("channelBot value not found in config file"), channel_id)
         .await
         .unwrap();
     log(
@@ -38,15 +38,15 @@ pub async fn fetch_message_from_id(msg_id: u64, channel_id: u64, ctx: &Context) 
     }
 }
 
-pub async fn send_dm(id: &u64, message: String, ctx: &Context) {
+pub async fn send_dm(id: u64, message: String, ctx: &Context) {
     println!("Sending DM to {id}: {message}");
-    if let Some(user) = ctx.cache.user(*id) {
+    if let Some(user) = ctx.cache.user(id) {
         user.direct_message(&ctx, |m| m.content(&message))
             .await
             .unwrap();
     } else {
         ctx.http
-            .get_user(*id)
+            .get_user(id)
             .await
             .unwrap()
             .direct_message(&ctx, |m| m.content(&message))
@@ -60,7 +60,7 @@ pub async fn init_client(config: PmlStruct, ctx_producer: Arc<Mutex<Sender<Conte
         | GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT
         | GatewayIntents::DIRECT_MESSAGES;
-    let bot_token = config.get::<String>("botToken");
+    let bot_token = config.get::<String>("botToken").expect("botToken value not found in config file");
     Client::builder(bot_token, intents)
         .event_handler(Handler {
             config,
@@ -71,7 +71,7 @@ pub async fn init_client(config: PmlStruct, ctx_producer: Arc<Mutex<Sender<Conte
 }
 
 pub async fn create_qa_thread(zitat_msg: &Message, config: &pml::PmlStruct, ctx: &Context) {
-    let channel_id = *config.get("channelBot");
+    let channel_id = config.get("channelBot").expect("channelBot value not found in config file");
     let bot_channel = if let Some(GuildChannel(bot_channel)) = ctx.cache.channel(channel_id) {
         bot_channel
     } else if let GuildChannel(bot_channel) = ctx.http.get_channel(channel_id).await.unwrap() {

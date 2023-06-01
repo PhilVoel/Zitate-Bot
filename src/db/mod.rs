@@ -85,12 +85,12 @@ pub async fn get_ranking(r#type: RankingType) -> String {
 }
 
 pub async fn init(config: &PmlStruct) {
-    DB.connect::<Ws>(config.get::<String>("dbUrl").as_str()).await.expect("Error connecting to DB");
+    DB.connect::<Ws>(config.get::<String>("dbUrl").expect("dbUrl value not found in config file").as_str()).await.expect("Error connecting to DB");
     DB.signin(Database {
-        namespace: config.get::<String>("dbNs"),
-        database: config.get::<String>("dbName"),
-        username: config.get::<String>("dbUser"),
-        password: config.get::<String>("dbPass"),
+        namespace: config.get::<&String>("dbNs").expect("dbNs value not found in config file"),
+        database: config.get::<&String>("dbName").expect("dbName value not found in config file"),
+        username: config.get::<&String>("dbUser").expect("dbUser value not found in config file"),
+        password: config.get::<&String>("dbPass").expect("dbPass value not found in config file"),
     })
     .await
     .expect("Error logging into DB");
