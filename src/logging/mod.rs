@@ -1,14 +1,7 @@
-use std::{fs::{OpenOptions, self}, io::Write, time::{SystemTime, UNIX_EPOCH}};
+use std::{fs::{OpenOptions, self}, io::Write, time::{SystemTime, UNIX_EPOCH}, sync::OnceLock};
 use chrono::Local;
-use lazy_static::lazy_static;
 
-lazy_static! {
-    static ref START_TIME: u128 = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis();
-}
-
+static START_TIME: OnceLock<u128> = OnceLock::new();
 
 pub fn log(message: &str, log_level: &str) {
     let print_string = format!("[{}] [{log_level}] {message}", get_date_string());
@@ -17,7 +10,11 @@ pub fn log(message: &str, log_level: &str) {
 }
 
 fn get_log_file_path() -> String {
-    format!("logs/{}.log", *START_TIME)
+    let start_time = START_TIME.get_or_init(|| SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_millis());
+    format!("logs/{}.log", start_time)
 }
 
 pub fn log_to_file(print_string: String) {
