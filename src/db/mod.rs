@@ -123,7 +123,7 @@ pub async fn insert_zitat(zitat_msg: &Message) {
         }
     };
     DB.query(format!("CREATE zitat:{msg_id} SET text=type::string($text); RELATE {}->wrote->zitat:{msg_id} SET time=type::datetime($time)", author.id))
-        .bind(("text", &zitat_msg.content))
+        .bind(("text", &zitat_msg.content.trim()))
         .bind(("time", zitat_msg.timestamp))
         .await.expect("Seems the DB went down");
     log(&format!("Zitat with ID {msg_id} successfully inserted into DB"), "INFO");
