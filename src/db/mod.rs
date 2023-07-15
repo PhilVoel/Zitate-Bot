@@ -26,14 +26,14 @@ pub static DB: Surreal<SurrealClient> = Surreal::init();
 pub async fn add_qa(r#type: QAType, user: User, id: u64) -> String {
     let user_id = user.id;
     let already_said: Option<bool> = DB
-        .query(format!("SELECT * FROM zitat:{id} IN (SELECT ->said.out as res FROM {user_id})"))
+        .query(format!("SELECT * FROM zitat:{id} IN (SELECT ->said.out as res FROM {user_id}).res"))
         .await
         .expect("Seems the DB went down")
         .take(0)
         .unwrap();
     let already_said = already_said.unwrap();
     let already_assisted: Option<bool> = DB
-        .query(format!("SELECT * FROM zitat:{id} IN (SELECT ->assisted.out as res FROM {user_id})"))
+        .query(format!("SELECT * FROM zitat:{id} IN (SELECT ->assisted.out as res FROM {user_id}).res"))
         .await
         .expect("Seems the DB went down")
         .take(0)
