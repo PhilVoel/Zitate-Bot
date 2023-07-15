@@ -43,10 +43,10 @@ pub async fn add_qa(r#type: QAType, user: User, id: u64) -> String {
         return String::from("Der ist dafür bereits eingetragen.");
     }
     if already_said && r#type == QAType::Assisted {
-        return String::from("Der hat schon einen Assist für das Zitat.");
+        return String::from("Der hat das Zitat schon gesagt.");
     }
     if already_assisted && r#type == QAType::Said {
-        return String::from("Der hat das Zitat schon gesagt.");
+        return String::from("Der hat schon einen Assist für das Zitat.");
     }
     let table_name = match r#type {
         QAType::Said => "said",
