@@ -13,8 +13,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use serenity::{
     async_trait,
     model::{
-        application::interaction::Interaction,
-        //application::interaction::{Interaction, application_command::ApplicationCommandInteraction},
+        application::interaction::{Interaction, application_command::ApplicationCommandInteraction},
         channel::{Channel, Message},
         gateway::Ready,
         id::{ChannelId, GuildId, MessageId, UserId as SerenityUserId},
@@ -28,19 +27,20 @@ pub struct Handler {
     pub ctx_producer: Arc<Mutex<mpsc::Sender<Context>>>,
 }
 
-/*trait ApplicationCommandInteractionExt {
-    async fn reply(&self, ctx: &Context, content: &str) {
-            self
-                .create_interaction_response(ctx.http, |response| {
-                    response.interaction_response_data(|message| message.content(response_text))
-                })
-                .await
-                .unwrap();
-    }
+trait ApplicationCommandInteractionExt {
+    async fn reply(&self, ctx: Context, content: &str);
 }
 
 impl ApplicationCommandInteractionExt for ApplicationCommandInteraction {
-}*/
+    async fn reply(&self, ctx: Context, response_text: &str) {
+        self
+            .create_interaction_response(ctx.http, |response| {
+                response.interaction_response_data(|message| message.content(response_text))
+            })
+            .await
+            .unwrap();
+    }
+}
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -128,7 +128,7 @@ impl EventHandler for Handler {
                 _ => return,
             };
             let bot_channel_id = self.config.get::<u64>("channelBot").expect("channelBot value not found in config file");
-            let response_text: String = match command.data.name.as_str() {
+            let response_text = match command.data.name.as_str() {
                 "stats" if channel_id == bot_channel_id => {
                     let user = match command.data.options.get(0) {
                         Some(input) => {
@@ -266,12 +266,7 @@ impl EventHandler for Handler {
                 }
                 _ => return,
             };
-            command
-                .create_interaction_response(ctx.http, |response| {
-                    response.interaction_response_data(|message| message.content(response_text))
-                })
-                .await
-                .unwrap();
+            command.reply(ctx, &response_text).await;
         }
     }
 }
