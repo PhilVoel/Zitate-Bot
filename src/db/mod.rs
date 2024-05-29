@@ -2,6 +2,7 @@ use pml::PmlStruct;
 use serde::Deserialize;
 use serenity::model::{prelude::Message, id::UserId as SerenityUserId};
 use surrealdb::{Surreal, engine::remote::ws::{Client as SurrealClient, Ws}, opt::auth::Database};
+use once_cell::sync::Lazy;
 
 use crate::{logging::log, QAType, RankingType, OVERALL_ZITATE_COUNT};
 
@@ -21,7 +22,7 @@ struct ZitatDeleteInfo {
     pub timestamp: String
 }
 
-pub static DB: Surreal<SurrealClient> = Surreal::init();
+pub static DB: Lazy<Surreal<SurrealClient>> = Lazy::new(Surreal::init);
 
 pub async fn add_qa(r#type: QAType, user: User, id: u64) -> String {
     let user_id = user.id;

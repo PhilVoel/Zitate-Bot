@@ -114,7 +114,7 @@ pub async fn get_stats(user: User) -> String {
 pub async fn get_zitate(user: User) -> String {
     let user_id = user.id;
     let zitate: Vec<ZitateListItem> = DB
-        .query(format!("SELECT out.text AS text, string::slice(out, 6) AS msg_id FROM {user_id}->said ORDER BY msg_id"))
+        .query(format!("SELECT out.text AS text, string::slice(type::string(out), 6) AS msg_id FROM {user_id}->said ORDER BY msg_id"))
         .await
         .expect("Seems the DB went down")
         .take(0)
