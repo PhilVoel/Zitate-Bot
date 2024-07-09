@@ -251,12 +251,42 @@ impl EventHandler for Handler {
                 }
                 _ => return,
             };
+            let (response_1, rest) = if response_text.len() <= 2000 {
+                (response_text, Vec::new())
+            }
+            else {
+                let indices: Vec<usize> = response_text
+                    .match_indices("\n------------------\n")
+                    .map(|(i, _)| i)
+                    .collect();
+                let mut responses = Vec::new();
+                let mut last_break = 0;
+                let mut previous = 0;
+                for i in [0..indices.len()] {
+                    let current = indices.get(i).expect("Index out of bounds")[0];
+                    if current - last_break > 2000 {
+                        responses.push(response_text[last_break..previous].to_string());
+                        last_break = previous;
+                    }
+                    previous = current;
+                }
+                responses.push(response_text[last_break..].to_string());
+                (responses.remove(0), responses)
+            };
             command
-                .create_interaction_response(ctx.http, |response| {
-                    response.interaction_response_data(|message| message.content(response_text))
+                .create_interaction_response(&ctx.http, |response| {
+                    response.interaction_response_data(|message| message.content(response_1))
                 })
                 .await
                 .unwrap();
+            for response in rest {
+                command
+                    .create_followup_message(&ctx.http, |message| 
+                        message.content(response)
+                    )
+                    .await
+                    .unwrap();
+            }
         }
     }
 }
