@@ -31,6 +31,8 @@ pub enum QAType {
 
 static mut OVERALL_ZITATE_COUNT: u16 = 0;
 
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[tokio::main]
 async fn main() {
     let (ctx_producer, ctx_receiver) = mpsc::channel();
@@ -45,6 +47,7 @@ async fn main() {
         }
     });
     fs::create_dir_all("logs").expect("Could not create logs directory");
+    log(&format!("Zitate-Bot v{VERSION}"), "INFO");
     let config = pml::parse::file("config.pml").expect("Error parsing config file");
     db::init(&config).await;
     unsafe {

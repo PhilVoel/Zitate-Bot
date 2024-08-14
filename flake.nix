@@ -17,6 +17,8 @@
 				rustc
 				sccache
 			];
+			SHELL_FLAKE_PATH="\\/home\\/philipp\\/Programming\\/Zitate-Bot";
+			SHELL_FLAKE_PATH_NO_SPACES="file:\\/\\/\\/home\\/philipp\\/Programming\\/Zitate-Bot";
 		};
 	};
 }
