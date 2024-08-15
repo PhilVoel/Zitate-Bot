@@ -262,13 +262,16 @@ impl EventHandler for Handler {
                 let mut responses = Vec::new();
                 let mut last_break = 0;
                 let mut previous = 0;
-                for i in [0..indices.len()] {
-                    let current = indices.get(i).expect("Index out of bounds")[0];
-                    if current - last_break > 2000 {
+                for current in &indices {
+                    if *current - last_break > 2000 {
                         responses.push(response_text[last_break..previous].to_string());
                         last_break = previous;
                     }
-                    previous = current;
+                    previous = *current;
+                }
+                if indices.len() - last_break > 2000 {
+                    responses.push(response_text[last_break..previous].to_string());
+                    last_break = previous;
                 }
                 responses.push(response_text[last_break..].to_string());
                 (responses.remove(0), responses)
