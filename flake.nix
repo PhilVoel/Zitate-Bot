@@ -9,7 +9,7 @@
 	in {
 		devShells."${system}".default = pkgs.mkShell {
 			name = "Zitate-Bot shell flake";
-			buildInputs = with pkgs; [
+			packages = with pkgs; [
 				bacon
 				cargo
 				clang
@@ -17,8 +17,10 @@
 				rustc
 				sccache
 			];
-			SHELL_FLAKE_PATH="\\/home\\/philipp\\/Programming\\/Zitate-Bot";
-			SHELL_FLAKE_PATH_NO_SPACES="file:\\/\\/\\/home\\/philipp\\/Programming\\/Zitate-Bot";
+			shellHook = ''
+				export NIX_LDFLAGS="$(echo $NIX_LDFLAGS | sed "s/\/home\/philipp\/Programming\/Zitate-Bot/file:\/\/\/home\/philipp\/Programming\/Zitate-Bot/g")"
+			'';
+			PROMPT="%F{cyan}%n%F{blue}%F{cyan}%m%F{blue}:%F{magenta}%~ ";
 		};
 	};
 }
