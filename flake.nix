@@ -17,10 +17,6 @@
 				rustc
 				sccache
 			];
-			shellHook = ''
-				export NIX_LDFLAGS="$(echo $NIX_LDFLAGS | sed "s/\/home\/philipp\/Programming\/Zitate-Bot/file:\/\/\/home\/philipp\/Programming\/Zitate-Bot/g")"
-			'';
-			PROMPT="%F{cyan}%n%F{blue}%F{cyan}%m%F{blue}:%F{magenta}%~ ";
 		};
 	};
 }
