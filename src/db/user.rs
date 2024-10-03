@@ -70,6 +70,20 @@ pub async fn get<'a, T>(user: T) -> surrealdb::Result<Option<User>>
         }
 }
 
+pub async fn get_id<'a, T>(user: T) -> Option<u64>
+    where T: Into<Identifier<'a>> {
+        match user.into() {
+            Identifier::Id(id) => Some(*id),
+            Identifier::Name(name) => match get_by_name(name).await {
+                Ok(Some(user)) => match user.id.parse() {
+                    Ok(id) => Some(id),
+                    Err(_) => None
+                }
+                _ => None
+            }
+        }
+}
+
 pub async fn add(id: u64, name: &str) {
     DB.query("CREATE type::thing('user', $id) SET name=$name, uids=[$id]")
         .bind(("name", name))

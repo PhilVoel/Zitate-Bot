@@ -15,7 +15,7 @@ use logging::{log, log_to_file, get_date_string};
 mod db;
 use db::{DB, user, get_ranking};
 mod discord;
-use discord::fetch_message_from_id;
+use discord::{fetch_message_from_id, send_dm};
 
 pub enum RankingType {
     Said,
@@ -152,7 +152,30 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
                     }
                 };
                 println!("{}", get_ranking(r#type).await);
-            }
+            },
+            Some(s) if s == "message" => send_dm(
+                match user::get_id(match result.get(2) {
+                    Some(s) => s,
+                    None => {
+                        println!("Missing user");
+                        return;
+                    }
+                }).await {
+                    Some(id) => id,
+                    None => {
+                        println!("Invalid username");
+                        return;
+                    }
+                },
+                match result.get(3) {
+                    Some(text) => text.clone(),
+                    None => {
+                        println!("Missing message");
+                        return
+                    }
+                },
+                ctx
+                ).await,
             Some(_) => println!("Unknown subcommand"),
             None => println!("Missing subcommand"),
         },
