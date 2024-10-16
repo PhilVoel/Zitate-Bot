@@ -1,6 +1,5 @@
 target/
 config.pml
 logs/
-Cargo.lock
 
 .direnv/
