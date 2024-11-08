@@ -131,7 +131,7 @@ pub async fn insert_zitat(zitat_msg: &Message) {
 }
 
 pub async fn delete_zitat(id: u64) {
-    let old_msg: Option<ZitatDeleteInfo> = DB.query(format!("SELECT text as content, time as timestamp, <-said.in.name as author_name FROM zitat:{id}")).await.unwrap().take(0).unwrap();
+    let old_msg: Option<ZitatDeleteInfo> = DB.query(format!("SELECT text as content, <-wrote[0].time as timestamp, <-wrote[0].in.name as author_name FROM zitat:{id}")).await.unwrap().take(0).unwrap();
     let old_msg = old_msg.unwrap();
     log(&format!("Content: {}", old_msg.content), "INFO");
     log(&format!("Author:  {}", old_msg.author_name), "INFO");
