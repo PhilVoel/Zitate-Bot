@@ -2,7 +2,7 @@
 	description = "Zitate-Bot shell flake";
 
 	inputs = {
-		nixpkgs.url = "github:nixos/nixpkgs/24.05";
+		nixpkgs.url = "nixpkgs/nixos-unstable";
 		flake-utils.url = "github:numtide/flake-utils/v1.0.0";
 	};
 
@@ -14,12 +14,13 @@
 					name = "Zitate-Bot shell flake";
 					packages = with pkgs; [
 						cargo
+						rustc
 					];
 				};
 				packages.default = packages.release;
 				packages.debug = pkgs.rustPlatform.buildRustPackage {
 					pname = "zitate_bot";
-					version = "0.1.2";
+					version = "0.2.0";
 					src = self;
 					cargoLock.lockFile = ./Cargo.lock;
 					buildType = "debug";
@@ -27,7 +28,7 @@
 				};
 				packages.release = pkgs.rustPlatform.buildRustPackage {
 					pname = "zitate_bot";
-					version = "0.1.2";
+					version = "0.2.0";
 					src = self;
 					cargoLock.lockFile = ./Cargo.lock;
 				};

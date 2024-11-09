@@ -38,7 +38,7 @@ use id::Identifier;
 async fn get_by_uid(id: &u64) -> surrealdb::Result<Option<User>> {
     DB
         .query("SELECT name, uids, type::string(id) as id FROM user WHERE $id IN uids")
-        .bind(("id", id))
+        .bind(("id", *id))
         .await?
         .take(0)
 }
@@ -46,7 +46,7 @@ async fn get_by_uid(id: &u64) -> surrealdb::Result<Option<User>> {
 async fn get_by_name(name: &str) -> surrealdb::Result<Option<User>> {
     DB
         .query("SELECT name, uids, type::string(id) as id FROM user WHERE name = $name")
-        .bind(("name", name))
+        .bind(("name", name.to_string()))
         .await?
         .take(0)
 }
@@ -86,7 +86,7 @@ pub async fn get_id<'a, T>(user: T) -> Option<u64>
 
 pub async fn add(id: u64, name: &str) {
     DB.query("CREATE type::thing('user', $id) SET name=$name, uids=[$id]")
-        .bind(("name", name))
+        .bind(("name", name.to_string()))
         .bind(("id", id))
         .await
         .expect("Seems the DB went down");
