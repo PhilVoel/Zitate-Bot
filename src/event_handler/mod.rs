@@ -1,6 +1,6 @@
 mod create_commands;
 use crate::{
-    db::{add_qa, get_ranking, user, DB},
+    db::{add_qa, get_ranking, new_connection, user},
     discord::{send_dm, delete_qa_thread, set_status_based_on_start_parameter},
     logging::log,
     register_zitat,
@@ -74,30 +74,32 @@ impl EventHandler for Handler {
         if *event.channel_id.as_u64() != self.config.get::<u64>("channelZitate").expect("channelZitate value not found in config file") {
             return;
         }
-        let zitat_id = event.id.0;
-        let old_text: Option<String> = DB
-            .query(format!("SELECT text FROM zitat:{zitat_id}"))
-            .await
-            .expect("Seems the DB went down")
-            .take((0, "text"))
-            .unwrap();
-        if old_text == event.content {
+        let zitat_id = event.id.0 as i64;
+        let new_text = event.content.unwrap();
+
+        let connection = new_connection();
+
+        let mut statement = connection.prepare("SELECT text FROM zitat WHERE id = :id").unwrap();
+        let _ = statement.bind((":id", zitat_id));
+        let _ = statement.next();
+        let old_text = statement.read::<String, _>(0).unwrap();
+
+        if old_text == old_text {
             return;
         }
-        let new_text = event.content.unwrap();
         log(
             &format!("Changing content of Zitat with ID {zitat_id}:"),
             "INFO",
         );
-        log(old_text.as_ref().unwrap(), "INFO");
+        log(&old_text, "INFO");
         log("->", "INFO");
         log(&new_text, "INFO");
-        DB.query(format!(
-            "UPDATE zitat:{zitat_id} SET text=type::string($text)"
-        ))
-        .bind(("text", new_text))
-        .await
-        .expect("Seems the DB went down");
+
+        let mut statement = connection.prepare("UPDATE zitate SET text = :text WHERE id = :id").unwrap();
+        let _ = statement.bind((":text", AsRef::<str>::as_ref(&new_text)));
+        let _ = statement.bind((":id", zitat_id));
+        let _ = statement.next();
+
         log("Zitat successfully updated", "INFO");
     }
 
@@ -121,22 +123,16 @@ impl EventHandler for Handler {
                             let len = input.len()-1;
                             if input.starts_with("<@") && input.ends_with('>') {
                                 let id = input[2..len].parse::<u64>().unwrap();
-                                user::get(&id).await
+                                user::get(&id)
                             } else {
-                                user::get(&input.to_string()).await
+                                user::get(&input.to_string())
                             }
                         }
-                        None => user::get(&command.user.id.0).await
+                        None => user::get(&command.user.id.0)
                     };
                     match user {
-                        Ok(option) => match option {
-                            Some(user) => user::get_stats(user).await,
-                            None => String::from("User not found"),
-                        },
-                        Err(e) => {
-                            log(&format!("Error getting user from DB: {e}"), "ERR ");
-                            String::from("Error looking up user in DB")
-                        }
+                        Some(user) => user::get_stats(user),
+                        None => String::from("User not found"),
                     }
                 }
                 "ranking" if channel_id == bot_channel_id => {
@@ -156,7 +152,7 @@ impl EventHandler for Handler {
                         "assisted" => RankingType::Assisted,
                         _ => return,
                     };
-                    get_ranking(r#type).await
+                    get_ranking(r#type)
                 }
                 "zitate" if channel_id == bot_channel_id => {
                     let user = match command.data.options.get(0) {
@@ -165,22 +161,16 @@ impl EventHandler for Handler {
                             let len = input.len()-1;
                             if input.starts_with("<@") && input.ends_with('>') {
                                 let id = input[2..len].parse::<u64>().unwrap();
-                                user::get(&id).await
+                                user::get(&id)
                             } else {
-                                user::get(&input.to_string()).await
+                                user::get(&input.to_string())
                             }
                         }
-                        None => user::get(&command.user.id.0).await
+                        None => user::get(&command.user.id.0)
                     };
                     match user {
-                        Ok(option) => match option {
-                            Some(user) => user::get_zitate(user).await,
-                            None => String::from("User not found"),
-                        },
-                        Err(e) => {
-                            log(&format!("Error getting user from DB: {e}"), "ERR ");
-                            String::from("Error looking up user in DB")
-                        }
+                        Some(user) => user::get_zitate(user),
+                        None => String::from("User not found"),
                     }
                 }
                 "gesagt" if parent_id == bot_channel_id => {
@@ -190,19 +180,13 @@ impl EventHandler for Handler {
                     match
                         if input.starts_with("<@") && input.ends_with('>') {
                             let id = input[2..len].parse::<u64>().unwrap();
-                            user::get(&id).await
+                            user::get(&id)
                         } else {
-                            user::get(&input.to_string()).await
+                            user::get(&input.to_string())
                         }
                     {
-                        Ok(option) => match option {
-                            Some(user) => add_qa(QAType::Said, user, zitat_id).await,
-                            None => String::from("User not found"),
-                        },
-                        Err(e) => {
-                            log(&format!("Error getting user from DB: {e}"), "ERR ");
-                            String::from("Error looking up user in DB")
-                        }
+                        Some(user) => add_qa(QAType::Said, user, zitat_id),
+                        None => String::from("User not found"),
                     }
                 }
                 "assistiert" if parent_id == bot_channel_id => {
@@ -212,33 +196,25 @@ impl EventHandler for Handler {
                     match
                         if input.starts_with("<@") && input.ends_with('>') {
                             let id = input[2..len].parse::<u64>().unwrap();
-                            user::get(&id).await
+                            user::get(&id)
                         } else {
-                            user::get(&input.to_string()).await
+                            user::get(&input.to_string())
                         }
                     {
-                        Ok(option) => match option {
-                            Some(user) => add_qa(QAType::Assisted, user, zitat_id).await,
-                            None => String::from("User not found"),
-                        },
-                        Err(e) => {
-                            log(&format!("Error getting user from DB: {e}"), "ERR ");
-                            String::from("Error looking up user in DB")
-                        }
+                        Some(user) => add_qa(QAType::Assisted, user, zitat_id),
+                        None => String::from("User not found"),
                     }
                 }
                 "fertig" if parent_id == bot_channel_id => {
                     let zitat_id = channel.name.parse::<u64>().unwrap();
-                    if DB
-                        .query(format!(
-                            "SELECT * FROM 0 < (SELECT count(<-said) FROM zitat:{zitat_id}).count"
-                        ))
-                        .await
-                        .expect("Seems the DB went down")
-                        .take::<Option<bool>>(0)
-                        .unwrap()
-                        .unwrap()
-                    {
+                    let said_exists = {
+                        let connection = new_connection();
+                        let mut statement = connection.prepare("SELECT count(*) FROM said WHERE zitat = :id").unwrap();
+                        let _ = statement.bind((":id", zitat_id as i64));
+                        let _ = statement.next();
+                        statement.read::<i64, _>(0).unwrap() > 0
+                    };
+                    if said_exists {
                         let thread_name = match command.channel_id.to_channel(&ctx).await.unwrap() {
                             Channel::Guild(channel) => channel.name,
                             _ => return,
@@ -263,13 +239,13 @@ impl EventHandler for Handler {
                 let mut last_break = 0;
                 let mut previous = 0;
                 for current in &indices {
-                    if *current - last_break > 2000 {
+                    if *current > last_break + 2000 {
                         responses.push(response_text[last_break..previous].to_string());
                         last_break = previous;
                     }
                     previous = *current;
                 }
-                if indices.len() - last_break > 2000 {
+                if indices.len() > last_break + 2000 {
                     responses.push(response_text[last_break..previous].to_string());
                     last_break = previous;
                 }
@@ -300,13 +276,9 @@ async fn dm_handler(msg: Message, config: &pml::PmlStruct, ctx: &Context) {
     if author_id == owner_id {
         return;
     }
-    let author = match user::get(&author_id).await {
-        Ok(Some(user_data)) => user_data.name.to_string(),
-        Ok(None) => format!("{} (ID: {author_id})", msg.author.tag()),
-        Err(e) => {
-            log(&format!("Error while getting user from db: {e}"), "ERR ");
-            format!("{} (ID: {author_id})", msg.author.tag())
-        }
+    let author = match user::get(&author_id) {
+        Some(user_data) => user_data.name.to_string(),
+        None => format!("{} (ID: {author_id})", msg.author.tag()),
     };
     log(&format!("Received DM from {author}"), "INFO");
     send_dm(

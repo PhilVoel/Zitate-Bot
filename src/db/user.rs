@@ -1,54 +1,53 @@
-use crate::db::get_percentage;
+use crate::{db::{get_percentage, new_connection}, logging::log};
 use serde::{Deserialize, Serialize};
-
-use super::DB;
-use crate::logging::log;
 
 #[derive(Serialize, Deserialize)]
 pub struct User {
-    pub id: String,
+    pub id: u64,
     pub name: String,
-    uids: Vec<u64>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct ZitateListItem {
-    msg_id: String,
-    text: String,
 }
 
 impl User {
     pub fn new(id: u64, name: String) -> Self {
         Self {
-            id: format!("user:{id}"),
+            id,
             name,
-            uids: vec![id],
         }
     }
 }
 
-mod id {
-    pub enum Identifier<'a> {
-        Id(&'a u64),
-        Name(&'a String),
+pub enum Identifier<'a> {
+    Id(&'a u64),
+    Name(&'a String),
+}
+
+fn get_by_uid(id: &u64) -> Option<User> {
+    let connection = new_connection();
+    let mut statement = connection.prepare("SELECT u.id AS main_id, u.name
+        FROM users as u
+        LEFT JOIN other_ids AS o ON u.id = o.main_id
+        WHERE u.id = :id OR o.secondary_id = :id").unwrap();
+    statement.bind((":id", *id as i64)).unwrap();
+    if let sqlite::State::Row = statement.next().unwrap() {
+        let id = statement.read::<i64, _>("main_id").unwrap() as u64;
+        let name = statement.read::<String, _>("u.name").unwrap();
+        Some(User::new(id, name))
+    } else {
+        None
     }
 }
-use id::Identifier;
 
-async fn get_by_uid(id: &u64) -> surrealdb::Result<Option<User>> {
-    DB
-        .query("SELECT name, uids, type::string(id) as id FROM user WHERE $id IN uids")
-        .bind(("id", *id))
-        .await?
-        .take(0)
-}
-
-async fn get_by_name(name: &str) -> surrealdb::Result<Option<User>> {
-    DB
-        .query("SELECT name, uids, type::string(id) as id FROM user WHERE name = $name")
-        .bind(("name", name.to_string()))
-        .await?
-        .take(0)
+fn get_by_name(name: &str) -> Option<User> {
+    let connection = new_connection();
+    let mut statement = connection.prepare("SELECT * from users WHERE name = :name").unwrap();
+    let _ = statement.bind((":name", name));
+    if let sqlite::State::Row = statement.next().unwrap() {
+        let id = statement.read::<i64, _>("id").unwrap() as u64;
+        let name = statement.read::<String, _>("name").unwrap();
+        Some(User::new(id, name))
+    } else {
+        None
+    }
 }
 
 impl<'a> From<&'a u64> for Identifier<'a> {
@@ -62,79 +61,82 @@ impl<'a> From<&'a String> for Identifier<'a> {
     }
 }
 
-pub async fn get<'a, T>(user: T) -> surrealdb::Result<Option<User>> 
+pub fn get<'a, T>(user: T) -> Option<User> 
     where T: Into<Identifier<'a>> {
         match user.into() {
-            Identifier::Id(id) => get_by_uid(id).await,
-            Identifier::Name(name) => get_by_name(name).await,
+            Identifier::Id(id) => get_by_uid(id),
+            Identifier::Name(name) => get_by_name(name),
         }
 }
 
-pub async fn get_id<'a, T>(user: T) -> Option<u64>
+pub fn get_id<'a, T>(user: T) -> Option<u64>
     where T: Into<Identifier<'a>> {
         match user.into() {
             Identifier::Id(id) => Some(*id),
-            Identifier::Name(name) => match get_by_name(name).await {
-                Ok(Some(user)) => match user.id.parse() {
-                    Ok(id) => Some(id),
-                    Err(_) => None
-                }
-                _ => None
+            Identifier::Name(name) => match get_by_name(name) {
+                Some(user) => Some(user.id),
+                None => None,
             }
         }
 }
 
-pub async fn add(id: u64, name: &str) {
-    DB.query("CREATE type::thing('user', $id) SET name=$name, uids=[$id]")
-        .bind(("name", name.to_string()))
-        .bind(("id", id))
-        .await
-        .expect("Seems the DB went down");
+pub fn add(id: u64, name: &str) {
+    let connection = new_connection();
+    let mut statement = connection.prepare("INSERT INTO users(id, name) VALUES(:id, :name)").unwrap();
+    let _ = statement.bind((":id", id as i64));
+    let _ = statement.bind((":name", name));
+    let _ = statement.next();
     log(&format!("Added {name} to DB"), "INFO");
 }
 
-pub async fn get_stats(user: User) -> String {
-    let user_id = user.id;
-    let said: Option<i32> = DB
-        .query(format!("SELECT count(->said) FROM {user_id}"))
-        .await
-        .expect("Seems the DB went down")
-        .take((0, "count"))
-        .unwrap();
-    let wrote: Option<i32> = DB
-        .query(format!("SELECT count(->wrote) FROM {user_id}"))
-        .await
-        .expect("Seems the DB went down")
-        .take((0, "count"))
-        .unwrap();
-    let assisted: Option<i32> = DB
-        .query(format!("SELECT count(->assisted) FROM {user_id}"))
-        .await
-        .expect("Seems the DB went down")
-        .take((0, "count"))
-        .unwrap();
-    let said: u16 = said.unwrap_or(0) as u16; 
-    let wrote: u16 = wrote.unwrap_or(0) as u16;
-    let assisted: u16 = assisted.unwrap_or(0) as u16;
+pub fn get_stats(user: User) -> String {
+    let connection = new_connection();
+
+    let mut statement = connection.prepare("SELECT count(user) AS count FROM said WHERE user = :id").unwrap();
+    let _ = statement.bind((":id", user.id as i64));
+    let _ = statement.next();
+    let said = statement.read::<i64, _>("count").unwrap();
+
+    let mut statement = connection.prepare("SELECT count(writer) AS count FROM zitate WHERE writer = :id").unwrap();
+    let _ = statement.bind((":id", user.id as i64));
+    let _ = statement.next();
+    let wrote = statement.read::<i64, _>("count").unwrap();
+
+    let mut statement = connection.prepare("SELECT count(user) AS count FROM assisted WHERE user = :id").unwrap();
+    let _ = statement.bind((":id", user.id as i64));
+    let _ = statement.next();
+    let assisted = statement.read::<i64, _>("count").unwrap();
+
     format!(
         "Stats für {}:\nGesagt: {said} ({}%)\nGeschrieben: {wrote} ({}%)\nAssisted: {assisted} ({}%)",
         user.name,
-        get_percentage(&said),
-        get_percentage(&wrote),
-        get_percentage(&assisted)
+        get_percentage(said),
+        get_percentage(wrote),
+        get_percentage(assisted)
     )
 }
 
-pub async fn get_zitate(user: User) -> String {
-    let user_id = user.id;
-    let zitate: Vec<ZitateListItem> = DB
-        .query(format!("SELECT out.text AS text, string::slice(type::string(out), 6) AS msg_id FROM {user_id}->said ORDER BY msg_id"))
-        .await
-        .expect("Seems the DB went down")
-        .take(0)
-        .unwrap();
+pub fn get_zitate(user: User) -> String {
+    let connection = new_connection();
+    let mut statement = connection.prepare("
+        SELECT z.id as id, z.text as text
+        FROM zitate AS z
+        JOIN said AS s ON z.id = s.zitat
+        WHERE s.user = :user_id
+        ORDER BY id
+    ").unwrap();
+    let _ = statement.bind((":user_id", user.id as i64));
+
+    let zitate: Vec<String> = statement.into_iter().map(|row| {
+        let row = row.unwrap();
+        format!("{}\nhttps://discord.com/channels/422796692899758091/528316171389239296/{}",
+            row.read::<&str, _>("text"),
+            row.read::<i64, _>("id")
+        )
+    }).collect();
     if zitate.is_empty() {
-        return format!("{} hat noch keine Zitate", user.name);
+        format!("{} hat noch keine Zitate", user.name)
+    } else {
+        format!("Zitate von {}:\n\n{}", user.name, zitate.join("\n------------------\n"))
     }
-    format!("Zitate von {}:\n\n{}", user.name, zitate.iter().map(|e| format!("{}\nhttps://discord.com/channels/422796692899758091/528316171389239296/{}", e.text, e.msg_id)).collect::<Vec<String>>().join("\n------------------\n"))
 }

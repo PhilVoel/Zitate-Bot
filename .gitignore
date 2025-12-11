@@ -3,3 +3,4 @@ config.pml
 logs/
 
 .direnv/
+result

@@ -2,7 +2,7 @@
 	description = "Zitate-Bot shell flake";
 
 	inputs = {
-		nixpkgs.url = "nixpkgs/nixos-unstable";
+		nixpkgs.url = "nixpkgs/nixos-25.11";
 		flake-utils.url = "github:numtide/flake-utils/v1.0.0";
 	};
 

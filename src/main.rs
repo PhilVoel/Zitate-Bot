@@ -13,7 +13,7 @@ mod event_handler;
 mod logging;
 use logging::{log, log_to_file, get_date_string};
 mod db;
-use db::{DB, user, get_ranking};
+use db::{user, get_ranking};
 mod discord;
 use discord::{fetch_message_from_id, send_dm};
 
@@ -49,15 +49,12 @@ async fn main() {
     fs::create_dir_all("logs").expect("Could not create logs directory");
     log(&format!("Zitate-Bot v{VERSION}"), "INFO");
     let config = pml::parse::file("config.pml").expect("Error parsing config file");
-    db::init(&config).await;
+    db::init(&config);
     unsafe {
-        let overall_num_zitate: Option<u16> = DB
-            .query("SELECT count() FROM zitat GROUP BY count")
-            .await
-            .expect("Seems the DB went down")
-            .take((0, "count"))
-            .unwrap();
-        OVERALL_ZITATE_COUNT = overall_num_zitate.unwrap_or(0);
+        let connection = db::new_connection();
+        let mut statement = connection.prepare("SELECT count(*) as count FROM zitate").unwrap();
+        let _ = statement.next();
+        OVERALL_ZITATE_COUNT = statement.read::<i64, _>("count").unwrap() as u16;
     }
     let mut client = discord::init_client(config, ctx_producer).await;
     if let Err(why) = client.start().await {
@@ -124,7 +121,7 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
                         println!("Missing user name");
                         return;
                     }
-                }).await,
+                }),
             Some(s) if s == "stats" => match user::get(
                 match result.get(2) {
                     Some(s) => s,
@@ -132,9 +129,8 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
                         println!("Missing user name");
                         return;
                     }
-                }
-                ).await.unwrap() {
-                Some(user) => println!("{}", user::get_stats(user).await),
+                }) {
+                Some(user) => println!("{}", user::get_stats(user)),
                 None => println!("User not found"),
             },
             Some(s) if s == "ranking" => {
@@ -151,7 +147,7 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
                         return;
                     }
                 };
-                println!("{}", get_ranking(r#type).await);
+                println!("{}", get_ranking(r#type));
             },
             Some(s) if s == "message" => send_dm(
                 match user::get_id(match result.get(2) {
@@ -160,7 +156,7 @@ async fn console_input_handler(input: String, ctx: &Context, config: &pml::PmlSt
                         println!("Missing user");
                         return;
                     }
-                }).await {
+                }) {
                     Some(id) => id,
                     None => {
                         println!("Invalid username");
@@ -202,7 +198,7 @@ async fn remove_zitat(
     config: &pml::PmlStruct,
 ) {
     log(&format!("Deleting Zitat with ID {msg_id}"), "WARN");
-    db::delete_zitat(msg_id).await;
+    db::delete_zitat(msg_id);
     discord::delete_qa_thread(msg_id.to_string(), ctx, config).await;
     unsafe {
         OVERALL_ZITATE_COUNT -= 1;
@@ -213,6 +209,6 @@ async fn register_zitat(zitat_msg: Message, config: &pml::PmlStruct, ctx: &Conte
     unsafe {
         OVERALL_ZITATE_COUNT += 1;
     }
-    db::insert_zitat(&zitat_msg).await;
+    db::insert_zitat(&zitat_msg);
     discord::create_qa_thread(&zitat_msg, config, ctx).await;
 }
