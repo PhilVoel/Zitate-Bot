@@ -20,7 +20,7 @@
 				packages.default = packages.release;
 				packages.debug = pkgs.rustPlatform.buildRustPackage {
 					pname = "zitate_bot";
-					version = "0.2.0";
+					version = "0.3.0";
 					src = self;
 					cargoLock.lockFile = ./Cargo.lock;
 					buildType = "debug";
@@ -28,7 +28,7 @@
 				};
 				packages.release = pkgs.rustPlatform.buildRustPackage {
 					pname = "zitate_bot";
-					version = "0.2.0";
+					version = "0.3.0";
 					src = self;
 					cargoLock.lockFile = ./Cargo.lock;
 				};
