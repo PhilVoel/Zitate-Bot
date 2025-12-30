@@ -23,14 +23,14 @@ pub enum Identifier<'a> {
 
 fn get_by_uid(id: &u64) -> Option<User> {
     let connection = new_connection();
-    let mut statement = connection.prepare("SELECT u.id AS main_id, u.name
+    let mut statement = connection.prepare("SELECT u.id AS main_id, u.name AS name
         FROM users as u
         LEFT JOIN other_ids AS o ON u.id = o.main_id
         WHERE u.id = :id OR o.secondary_id = :id").unwrap();
     statement.bind((":id", *id as i64)).unwrap();
     if let sqlite::State::Row = statement.next().unwrap() {
         let id = statement.read::<i64, _>("main_id").unwrap() as u64;
-        let name = statement.read::<String, _>("u.name").unwrap();
+        let name = statement.read::<String, _>("name").unwrap();
         Some(User::new(id, name))
     } else {
         None
