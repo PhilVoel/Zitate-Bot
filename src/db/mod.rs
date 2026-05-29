@@ -163,7 +163,7 @@ pub fn insert_zitat(zitat_msg: &Message) {
         None => {
             log("Author not found in DB", "WARN");
             user::add(author_id, &zitat_msg.author.name);
-            User::new(author_id, zitat_msg.author.name.clone()) 
+            User::new(author_id, zitat_msg.author.name.clone())
         }
     };
 
@@ -179,7 +179,7 @@ pub fn insert_zitat(zitat_msg: &Message) {
 
 pub fn delete_zitat(id: u64) {
     let connection = new_connection();
-    let mut statement = connection.prepare("SELECT z.text AS content, datetime(z.time, 'unixepoch') AS timestamp, u.name AS author_name
+    let mut statement = connection.prepare("SELECT z.text AS content, unixepoch(z.time) AS timestamp, u.name AS author_name
         FROM zitate AS z
         JOIN users AS u ON z.writer = u.id
         WHERE z.id = :id
